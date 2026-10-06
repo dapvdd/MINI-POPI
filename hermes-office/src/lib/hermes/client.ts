@@ -146,6 +146,16 @@ export class HermesClient {
     });
   }
 
+async submitPrompt(sessionId: string, prompt: string) {
+  return this.request(
+    "prompt.submit",
+    {
+      session_id: sessionId,
+      text: prompt,
+    },
+  );
+}
+
   getState() {
     return this.state;
   }
