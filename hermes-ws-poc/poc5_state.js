@@ -1,10 +1,6 @@
 const WebSocket = require('ws');
 
-const TOKEN = process.env.HERMES_TOKEN;
-
-if (!TOKEN) {
-  throw new Error('HERMES_TOKEN belum diset');
-}
+const TOKEN = process.env.HERMES_SESSION_TOKEN;
 
 const url =
   `ws://127.0.0.1:9119/api/ws?token=${encodeURIComponent(TOKEN)}`;
@@ -106,6 +102,12 @@ Setelah selesai, jawab singkat.
 
   const type = msg.params?.type;
   const payload = msg.params?.payload ?? {};
+  
+  console.log(
+  '\n📡 EVENT:',
+  type,
+  JSON.stringify(payload, null, 2)
+);
 
   switch (type) {
 
@@ -171,11 +173,21 @@ Setelah selesai, jawab singkat.
       break;
 
     case 'message.complete':
-      if (payload.status === 'error') {
-        setStatus('ERROR');
-      } else {
-        setStatus('IDLE');
-      }
+      console.log('\n🏁 MESSAGE COMPLETE');
+      console.log('Status:', payload.status);
+      console.log('Payload:', JSON.stringify(payload, null, 2));
+
+      setStatus(
+        payload.status === 'error'
+          ? 'ERROR'
+          : 'IDLE'
+      );
+
+      setTimeout(() => {
+        ws.close();
+      }, 1000);
+
+      break;
 
       console.log('\n🏁 MESSAGE COMPLETE');
 
