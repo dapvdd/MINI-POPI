@@ -9,9 +9,9 @@ type AgentStatus =
   | "OFFLINE"
   | "IDLE"
   | "THINKING"
-  | "PREPARING TOOL"
+  | "USING_TOOL"
   | "WORKING"
-  | "TOOL DONE"
+  | "TERMINAL"
   | "ERROR";
 
 type HermesEvent = {
@@ -26,10 +26,11 @@ type HermesEvent = {
 function Agent({ status }: { status: AgentStatus }) {
   const group = useRef<THREE.Group>(null);
 
-  const working =
-    status === "WORKING" ||
-    status === "PREPARING TOOL" ||
-    status === "THINKING";
+const working =
+  status === "WORKING" ||
+  status === "USING_TOOL" ||
+  status === "TERMINAL" ||
+  status === "THINKING";
 
   useFrame((state) => {
     if (!group.current) return;
@@ -52,14 +53,16 @@ function Agent({ status }: { status: AgentStatus }) {
     }
   });
 
-  const bodyColor =
-    status === "ERROR"
-      ? "#ef4444"
-      : status === "WORKING"
-        ? "#f59e0b"
-        : status === "THINKING"
-          ? "#a78bfa"
-          : "#60a5fa";
+const bodyColor =
+  status === "ERROR"
+    ? "#ef4444"
+    : status === "WORKING" ||
+        status === "USING_TOOL" ||
+        status === "TERMINAL"
+      ? "#f59e0b"
+      : status === "THINKING"
+        ? "#a78bfa"
+        : "#60a5fa";
 
   return (
     <group ref={group} position={[0, 0.05, 0]}>
@@ -137,7 +140,8 @@ function Desk() {
 function Monitor({ status }: { status: AgentStatus }) {
   const working =
     status === "WORKING" ||
-    status === "PREPARING TOOL" ||
+    status === "USING_TOOL" ||
+    status === "TERMINAL" ||
     status === "THINKING";
 
   const screenColor =
@@ -222,7 +226,8 @@ function Scene({ status }: { status: AgentStatus }) {
 
 function workingIntensity(status: AgentStatus) {
   if (status === "WORKING") return 8;
-  if (status === "PREPARING TOOL") return 5;
+  if (status === "USING_TOOL") return 6;
+  if (status === "TERMINAL") return 6;
   if (status === "THINKING") return 4;
   if (status === "ERROR") return 7;
 
@@ -253,182 +258,122 @@ export default function Home() {
   const [events, setEvents] =
     useState<string[]>([]);
 
-  const wsRef =
-    useRef<WebSocket | null>(null);
+    useEffect(() => {
+  const source = new EventSource("/api/hermes/events");
 
-  /* =======================================================
-     WEBSOCKET
-  ======================================================= */
+  source.onopen = () => {
+    console.log("📡 Connected to Hermes SSE");
+    setConnected(true);
+  };
 
-  useEffect(() => {
-    const ws =
-      new WebSocket("ws://127.0.0.1:3001");
+  source.onmessage = (event) => {
+    console.log("📡 HERMES STATE:", event.data);
 
-    wsRef.current = ws;
+    try {
+      const state = JSON.parse(event.data);
 
-    ws.onopen = () => {
-      console.log("🏢 Connected to Office Bridge");
-
-      setConnected(true);
-      setStatus("IDLE");
-    };
-
-    ws.onclose = () => {
-      console.log("🔴 Office Bridge disconnected");
-
-      setConnected(false);
-      setStatus("OFFLINE");
-    };
-
-    ws.onerror = (error) => {
-      console.error(
-        "Office WebSocket error:",
-        error
-      );
-    };
-
-    ws.onmessage = (event) => {
-      console.log(
-        "📡 OFFICE RECEIVED:",
-        event.data
-      );
-
-      let message: HermesEvent;
-
-      try {
-        message = JSON.parse(event.data);
-      } catch {
-        return;
-      }
-
-      const payload =
-        message.payload ?? {};
-
-      /* EVENT LOG */
+      setStatus(state.status ?? "OFFLINE");
+      setTool(state.tool ?? "-");
+      setCommand(state.command ?? "-");
+      setOutput(state.lastOutput ?? "-");
 
       setEvents((prev) => [
-        message.type,
+        state.status ?? "UNKNOWN",
         ...prev,
       ].slice(0, 20));
+    } catch {
+      console.error(
+        "❌ Invalid Hermes SSE data:",
+        event.data,
+      );
+    }
+  };
 
-      /* STATUS MACHINE */
+  source.onerror = () => {
+    console.error("❌ Hermes SSE disconnected");
+    setConnected(false);
+    setStatus("OFFLINE");
+  };
 
-      switch (message.type) {
-        case "gateway.ready":
-          setStatus("IDLE");
-          break;
-
-        case "message.start":
-          setStatus("THINKING");
-          break;
-
-        case "thinking.delta":
-        case "reasoning.delta":
-          setStatus("THINKING");
-          break;
-
-        case "tool.generating":
-          setTool(
-            payload.name ?? "-"
-          );
-
-          setStatus(
-            "PREPARING TOOL"
-          );
-
-          break;
-
-        case "tool.start":
-          setTool(
-            payload.name ?? "-"
-          );
-
-          setCommand(
-            payload.args?.command ??
-              payload.context ??
-              "-"
-          );
-
-          setStatus("WORKING");
-
-          break;
-
-        case "tool.complete":
-          setOutput(
-            payload.result?.output ??
-              payload.result_text ??
-              "-"
-          );
-
-          setStatus(
-            payload.result?.error ||
-              payload.result?.exit_code !== 0
-              ? "ERROR"
-              : "TOOL DONE"
-          );
-
-          break;
-
-        case "message.complete":
-          setStatus(
-            payload.status === "error"
-              ? "ERROR"
-              : "IDLE"
-          );
-
-          break;
-      }
-    };
-
-    return () => {
-      ws.close();
-      wsRef.current = null;
-    };
-  }, []);
+  return () => {
+    source.close();
+  };
+}, []);
 
   /* =======================================================
      SEND TO BRIDGE
   ======================================================= */
 
-  function sendPrompt(text: string) {
-    const clean = text.trim();
+async function sendPrompt(text: string) {
+  const clean = text.trim();
 
-    if (!clean) return;
+  if (!clean) return;
 
-    const ws =
-      wsRef.current;
+  try {
+    console.log("📤 Sending prompt:", clean);
 
-    if (
-      !ws ||
-      ws.readyState !== WebSocket.OPEN
-    ) {
-      console.error(
-        "Bridge belum connected"
+    const sessionResponse = await fetch(
+      "/api/hermes/session",
+      {
+        method: "POST",
+      },
+    );
+
+    const sessionData = await sessionResponse.json();
+
+    if (!sessionResponse.ok || !sessionData.ok) {
+      throw new Error(
+        sessionData.error ??
+          "Gagal membuat Hermes session",
       );
-
-      return;
     }
 
-    console.log(
-      "📤 Sending prompt:",
-      clean
+    const sessionId =
+      sessionData.session.session_id;
+
+    console.log("🆕 Hermes session:", sessionId);
+
+    const promptResponse = await fetch(
+      "/api/hermes/prompt",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          prompt: clean,
+        }),
+      },
     );
 
-    ws.send(
-      JSON.stringify({
-        type: "prompt",
-        text: clean,
-      })
-    );
+    const promptData = await promptResponse.json();
+
+    if (!promptResponse.ok || !promptData.ok) {
+      throw new Error(
+        promptData.error ??
+          "Gagal mengirim prompt",
+      );
+    }
+
+    console.log("✅ Prompt submitted");
 
     setPrompt("");
-  }
-
-  function runTest() {
-    sendPrompt(
-      "Gunakan terminal tool untuk menjalankan perintah berikut: printf 'HERMES OFFICE TEST\\n'. Setelah selesai, balas singkat bahwa berhasil."
+  } catch (error) {
+    console.error(
+      "❌ Failed to send prompt:",
+      error,
     );
+
+    setStatus("ERROR");
   }
+}
+
+function runTest() {
+  sendPrompt(
+    "Gunakan terminal tool untuk menjalankan perintah berikut: printf 'HERMES OFFICE TEST\n'. Setelah selesai, balas singkat bahwa berhasil.",
+  );
+}
 
   /* =======================================================
      UI
