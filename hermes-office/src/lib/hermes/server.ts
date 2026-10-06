@@ -7,10 +7,10 @@ export function getHermesClient() {
     return client;
   }
 
-  const token = process.env.HERMES_TOKEN;
+  const token = process.env.HERMES_SESSION_TOKEN;
 
   if (!token) {
-    throw new Error("HERMES_TOKEN belum diset");
+    throw new Error("HERMES_SESSION_TOKEN belum diset");
   }
 
   client = new HermesClient(token, (state) => {
@@ -20,4 +20,13 @@ export function getHermesClient() {
   client.connect();
 
   return client;
+}
+
+export async function createHermesSession() {
+  const hermes = getHermesClient();
+
+  return hermes.request<{ session_id: string }>(
+    "session.create",
+    {},
+  );
 }
