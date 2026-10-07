@@ -5,100 +5,122 @@ import { OrbitControls } from "@react-three/drei";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 
-type AgentStatus =
-  | "OFFLINE"
-  | "IDLE"
-  | "THINKING"
-  | "USING_TOOL"
-  | "WORKING"
-  | "TERMINAL"
-  | "ERROR";
-
-type HermesEvent = {
-  type: string;
-  payload?: Record<string, any>;
-};
+import type { AgentStatus } from "@/lib/hermes/types";
+import {
+  BASE_Y,
+  getBodyColor,
+  getPointLightColor,
+  getPointLightIntensity,
+  getPopiPose,
+  getScreenColor,
+  getScreenGlow,
+} from "@/lib/popi";
 
 /* =========================================================
    3D AGENT
 ========================================================= */
 
 function Agent({ status }: { status: AgentStatus }) {
-  const group = useRef<THREE.Group>(null);
+  const root = useRef<THREE.Group>(null);
+  const body = useRef<THREE.Group>(null);
+  const head = useRef<THREE.Group>(null);
+  const armLeft = useRef<THREE.Group>(null);
+  const armRight = useRef<THREE.Group>(null);
+  const eyeLeft = useRef<THREE.Mesh>(null);
+  const eyeRight = useRef<THREE.Mesh>(null);
 
-const working =
-  status === "WORKING" ||
-  status === "USING_TOOL" ||
-  status === "TERMINAL" ||
-  status === "THINKING";
+  const bodyColor = getBodyColor(status);
 
-  useFrame((state) => {
-    if (!group.current) return;
+  useFrame((state, delta) => {
+    const pose = getPopiPose(status, state.clock.elapsedTime);
 
-    const t = state.clock.elapsedTime;
+    if (!root.current || !body.current || !head.current) {
+      return;
+    }
 
-    if (working) {
-      group.current.position.y =
-        0.05 + Math.sin(t * 10) * 0.12;
+    root.current.position.set(
+      pose.position[0],
+      pose.position[1],
+      pose.position[2],
+    );
 
-      group.current.rotation.z =
-        Math.sin(t * 7) * 0.08;
+    root.current.rotation.x = pose.rotation[0];
+    root.current.rotation.z = pose.rotation[2];
+    root.current.rotation.y = THREE.MathUtils.damp(
+      root.current.rotation.y,
+      pose.facing,
+      6,
+      delta,
+    );
 
-      group.current.rotation.y =
-        Math.sin(t * 4) * 0.12;
-    } else {
-      group.current.position.y = 0.05;
-      group.current.rotation.z = 0;
-      group.current.rotation.y = 0;
+    body.current.scale.setScalar(pose.bodyScale);
+
+    head.current.rotation.set(
+      pose.headRotation[0],
+      pose.headRotation[1],
+      pose.headRotation[2],
+    );
+
+    if (armLeft.current) {
+      armLeft.current.rotation.x = pose.armLeft;
+    }
+
+    if (armRight.current) {
+      armRight.current.rotation.x = pose.armRight;
+    }
+
+    if (eyeLeft.current) {
+      eyeLeft.current.scale.set(1, pose.eyeOpen, 1);
+    }
+
+    if (eyeRight.current) {
+      eyeRight.current.scale.set(1, pose.eyeOpen, 1);
     }
   });
 
-const bodyColor =
-  status === "ERROR"
-    ? "#ef4444"
-    : status === "WORKING" ||
-        status === "USING_TOOL" ||
-        status === "TERMINAL"
-      ? "#f59e0b"
-      : status === "THINKING"
-        ? "#a78bfa"
-        : "#60a5fa";
-
   return (
-    <group ref={group} position={[0, 0.05, 0]}>
-      {/* BODY */}
-      <mesh position={[0, 0.8, 0]}>
-        <capsuleGeometry args={[0.35, 0.7, 8, 16]} />
-        <meshStandardMaterial color={bodyColor} />
-      </mesh>
+    <group ref={root} position={[0, BASE_Y, 0]}>
+      <group ref={body}>
+        {/* BODY */}
+        <mesh position={[0, 0.8, 0]}>
+          <capsuleGeometry args={[0.35, 0.7, 8, 16]} />
+          <meshStandardMaterial color={bodyColor} />
+        </mesh>
 
-      {/* HEAD */}
-      <mesh position={[0, 1.65, 0]}>
-        <sphereGeometry args={[0.38, 24, 24]} />
-        <meshStandardMaterial color="#e5e7eb" />
-      </mesh>
+        {/* HEAD */}
+        <group ref={head} position={[0, 1.65, 0]}>
+          <mesh>
+            <sphereGeometry args={[0.38, 24, 24]} />
+            <meshStandardMaterial color="#e5e7eb" />
+          </mesh>
 
-      {/* EYES */}
-      <mesh position={[-0.13, 1.68, 0.34]}>
-        <sphereGeometry args={[0.045, 12, 12]} />
-        <meshStandardMaterial color="#111827" />
-      </mesh>
+          {/* EYES */}
+          <mesh ref={eyeLeft} position={[-0.13, 0.03, 0.34]}>
+            <sphereGeometry args={[0.045, 12, 12]} />
+            <meshStandardMaterial color="#111827" />
+          </mesh>
 
-      <mesh position={[0.13, 1.68, 0.34]}>
-        <sphereGeometry args={[0.045, 12, 12]} />
-        <meshStandardMaterial color="#111827" />
-      </mesh>
+          <mesh ref={eyeRight} position={[0.13, 0.03, 0.34]}>
+            <sphereGeometry args={[0.045, 12, 12]} />
+            <meshStandardMaterial color="#111827" />
+          </mesh>
+        </group>
 
-      {/* ARMS */}
-      <mesh position={[-0.42, 0.8, 0]}>
-        <boxGeometry args={[0.16, 0.55, 0.16]} />
-        <meshStandardMaterial color={bodyColor} />
-      </mesh>
+        {/* ARMS (pivoted at the shoulder) */}
+        <group ref={armLeft} position={[-0.42, 1.05, 0]}>
+          <mesh position={[0, -0.275, 0]}>
+            <boxGeometry args={[0.16, 0.55, 0.16]} />
+            <meshStandardMaterial color={bodyColor} />
+          </mesh>
+        </group>
 
-      <mesh position={[0.42, 0.8, 0]}>
-        <boxGeometry args={[0.16, 0.55, 0.16]} />
-        <meshStandardMaterial color={bodyColor} />
-      </mesh>
+        <group ref={armRight} position={[0.42, 1.05, 0]}>
+          <mesh position={[0, -0.275, 0]}>
+            <boxGeometry args={[0.16, 0.55, 0.16]} />
+            <meshStandardMaterial color={bodyColor} />
+          </mesh>
+        </group>
+      </group>
     </group>
   );
 }
@@ -137,32 +159,69 @@ function Desk() {
    MONITOR
 ========================================================= */
 
-function Monitor({ status }: { status: AgentStatus }) {
-  const working =
-    status === "WORKING" ||
-    status === "USING_TOOL" ||
-    status === "TERMINAL" ||
-    status === "THINKING";
+const LINE_WIDTHS = [1.5, 0.9, 1.25, 0.7, 1.05];
 
-  const screenColor =
-    status === "ERROR"
-      ? "#ef4444"
-      : status === "THINKING"
-        ? "#a78bfa"
-        : working
-          ? "#f59e0b"
-          : "#22c55e";
+function TerminalLines({ active }: { active: boolean }) {
+  const group = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    if (!group.current) return;
+
+    group.current.visible = active;
+
+    if (!active) return;
+
+    const t = state.clock.elapsedTime;
+
+    group.current.children.forEach((line, index) => {
+      const span = 1.0;
+      const raw = index * 0.24 - t * 0.4;
+      const wrapped = ((raw % span) + span) % span;
+
+      line.position.y = wrapped - span / 2;
+    });
+  });
+
+  return (
+    <group ref={group} position={[0, 0, 0.08]}>
+      {LINE_WIDTHS.map((width, index) => (
+        <mesh
+          key={index}
+          position={[-1 + width / 2, 0, 0]}
+        >
+          <boxGeometry args={[width, 0.05, 0.02]} />
+          <meshBasicMaterial color="#4ade80" />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function Monitor({ status }: { status: AgentStatus }) {
+  const screen = useRef<THREE.MeshStandardMaterial>(null);
+
+  useFrame((state) => {
+    if (!screen.current) return;
+
+    screen.current.emissiveIntensity = getScreenGlow(
+      status,
+      state.clock.elapsedTime,
+    );
+  });
 
   return (
     <group position={[0, 1.45, -0.55]}>
       <mesh>
         <boxGeometry args={[2.2, 1.3, 0.12]} />
         <meshStandardMaterial
+          ref={screen}
           color="#09090b"
-          emissive={screenColor}
-          emissiveIntensity={working ? 1.5 : 0.25}
+          emissive={getScreenColor(status)}
+          emissiveIntensity={0.3}
         />
       </mesh>
+
+      <TerminalLines active={status === "TERMINAL"} />
 
       <mesh position={[0, -0.8, 0]}>
         <boxGeometry args={[0.12, 0.6, 0.12]} />
@@ -181,6 +240,28 @@ function Monitor({ status }: { status: AgentStatus }) {
    SCENE
 ========================================================= */
 
+function LightRig({ status }: { status: AgentStatus }) {
+  const light = useRef<THREE.PointLight>(null);
+
+  useFrame((state) => {
+    if (!light.current) return;
+
+    light.current.intensity = getPointLightIntensity(
+      status,
+      state.clock.elapsedTime,
+    );
+  });
+
+  return (
+    <pointLight
+      ref={light}
+      position={[0, 3, -2]}
+      intensity={1}
+      color={getPointLightColor(status)}
+    />
+  );
+}
+
 function Scene({ status }: { status: AgentStatus }) {
   return (
     <>
@@ -191,17 +272,7 @@ function Scene({ status }: { status: AgentStatus }) {
         intensity={2}
       />
 
-      <pointLight
-        position={[0, 3, -2]}
-        intensity={workingIntensity(status)}
-        color={
-          status === "ERROR"
-            ? "#ef4444"
-            : status === "THINKING"
-              ? "#a78bfa"
-              : "#f59e0b"
-        }
-      />
+      <LightRig status={status} />
 
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
@@ -224,19 +295,16 @@ function Scene({ status }: { status: AgentStatus }) {
   );
 }
 
-function workingIntensity(status: AgentStatus) {
-  if (status === "WORKING") return 8;
-  if (status === "USING_TOOL") return 6;
-  if (status === "TERMINAL") return 6;
-  if (status === "THINKING") return 4;
-  if (status === "ERROR") return 7;
-
-  return 1;
-}
-
 /* =========================================================
    MAIN
 ========================================================= */
+
+type SseState = {
+  status?: string;
+  tool?: string | null;
+  command?: string | null;
+  lastOutput?: string | null;
+};
 
 export default function Home() {
   const [connected, setConnected] = useState(false);
@@ -258,126 +326,220 @@ export default function Home() {
   const [events, setEvents] =
     useState<string[]>([]);
 
-    useEffect(() => {
-  const source = new EventSource("/api/hermes/events");
+  const [sending, setSending] =
+    useState(false);
 
-  source.onopen = () => {
-    console.log("📡 Connected to Hermes SSE");
-    setConnected(true);
-  };
+  const [submitError, setSubmitError] =
+    useState<string | null>(null);
 
-  source.onmessage = (event) => {
-    console.log("📡 HERMES STATE:", event.data);
+  useEffect(() => {
+    let source: EventSource | null = null;
+    let retryTimer: number | null = null;
+    let retryDelay = 1000;
+    let disposed = false;
 
-    try {
-      const state = JSON.parse(event.data);
+    function applyState(raw: string) {
+      let state: SseState;
 
-      setStatus(state.status ?? "OFFLINE");
-      setTool(state.tool ?? "-");
-      setCommand(state.command ?? "-");
-      setOutput(state.lastOutput ?? "-");
+      try {
+        state = JSON.parse(raw);
+      } catch {
+        console.error(
+          "❌ Invalid Hermes SSE data:",
+          raw,
+        );
+        return;
+      }
 
-      setEvents((prev) => [
-        state.status ?? "UNKNOWN",
-        ...prev,
-      ].slice(0, 20));
-    } catch {
-      console.error(
-        "❌ Invalid Hermes SSE data:",
-        event.data,
+      const nextStatus = (state.status as AgentStatus) ?? "OFFLINE";
+      const nextTool = state.tool ?? "-";
+      const nextCommand = state.command ?? "-";
+      const nextOutput = state.lastOutput ?? "-";
+
+      setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
+      setTool((prev) => (prev === nextTool ? prev : nextTool));
+      setCommand((prev) =>
+        prev === nextCommand ? prev : nextCommand,
+      );
+      setOutput((prev) =>
+        prev === nextOutput ? prev : nextOutput,
+      );
+
+      const line =
+        nextTool === "-"
+          ? nextStatus
+          : `${nextStatus} · ${nextTool}`;
+
+      setEvents((prev) =>
+        prev[0] === line
+          ? prev
+          : [line, ...prev].slice(0, 20),
       );
     }
-  };
 
-  source.onerror = () => {
-    console.error("❌ Hermes SSE disconnected");
-    setConnected(false);
-    setStatus("OFFLINE");
-  };
+    function open() {
+      if (disposed) return;
 
-  return () => {
-    source.close();
-  };
-}, []);
+      source?.close();
+
+      const next = new EventSource("/api/hermes/events");
+      source = next;
+
+      next.onopen = () => {
+        retryDelay = 1000;
+        setConnected(true);
+      };
+
+      next.onmessage = (event) => {
+        applyState(event.data);
+      };
+
+      next.onerror = () => {
+        if (disposed) return;
+
+        setConnected(false);
+
+        /*
+         * While CONNECTING, EventSource retries on its own.
+         * Only rebuild it once the browser has given up.
+         */
+        if (next.readyState !== EventSource.CLOSED) {
+          return;
+        }
+
+        next.close();
+
+        if (source === next) {
+          source = null;
+        }
+
+        setStatus((prev) =>
+          prev === "OFFLINE" ? prev : "OFFLINE",
+        );
+
+        retryTimer = window.setTimeout(() => {
+          retryTimer = null;
+          open();
+        }, retryDelay);
+
+        retryDelay = Math.min(retryDelay * 2, 10000);
+      };
+    }
+
+    open();
+
+    return () => {
+      disposed = true;
+
+      if (retryTimer !== null) {
+        window.clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+
+      source?.close();
+      source = null;
+    };
+  }, []);
 
   /* =======================================================
      SEND TO BRIDGE
   ======================================================= */
 
-async function sendPrompt(text: string) {
-  const clean = text.trim();
-
-  if (!clean) return;
-
-  try {
-    console.log("📤 Sending prompt:", clean);
-
-    const sessionResponse = await fetch(
-      "/api/hermes/session",
-      {
-        method: "POST",
-      },
-    );
-
-    const sessionData = await sessionResponse.json();
-
-    if (!sessionResponse.ok || !sessionData.ok) {
-      throw new Error(
-        sessionData.error ??
-          "Gagal membuat Hermes session",
-      );
+  async function readJson(response: Response) {
+    try {
+      return await response.json();
+    } catch {
+      return null;
     }
-
-    const sessionId =
-      sessionData.session.session_id;
-
-    console.log("🆕 Hermes session:", sessionId);
-
-    const promptResponse = await fetch(
-      "/api/hermes/prompt",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          session_id: sessionId,
-          prompt: clean,
-        }),
-      },
-    );
-
-    const promptData = await promptResponse.json();
-
-    if (!promptResponse.ok || !promptData.ok) {
-      throw new Error(
-        promptData.error ??
-          "Gagal mengirim prompt",
-      );
-    }
-
-    console.log("✅ Prompt submitted");
-
-    setPrompt("");
-  } catch (error) {
-    console.error(
-      "❌ Failed to send prompt:",
-      error,
-    );
-
-    setStatus("ERROR");
   }
-}
 
-function runTest() {
-  sendPrompt(
-    "Gunakan terminal tool untuk menjalankan perintah berikut: printf 'HERMES OFFICE TEST\n'. Setelah selesai, balas singkat bahwa berhasil.",
-  );
-}
+  async function sendPrompt(text: string) {
+    const clean = text.trim();
+
+    if (!clean || sending) return;
+
+    setSending(true);
+    setSubmitError(null);
+
+    try {
+      console.log("📤 Sending prompt:", clean);
+
+      const sessionResponse = await fetch(
+        "/api/hermes/session",
+        {
+          method: "POST",
+        },
+      );
+
+      const sessionData = await readJson(sessionResponse);
+
+      if (!sessionResponse.ok || !sessionData?.ok) {
+        throw new Error(
+          sessionData?.error ??
+            "Gagal membuat Hermes session",
+        );
+      }
+
+      const sessionId =
+        sessionData?.session?.session_id;
+
+      if (!sessionId || typeof sessionId !== "string") {
+        throw new Error("Hermes session tidak valid");
+      }
+
+      console.log("🆕 Hermes session:", sessionId);
+
+      const promptResponse = await fetch(
+        "/api/hermes/prompt",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            session_id: sessionId,
+            prompt: clean,
+          }),
+        },
+      );
+
+      const promptData = await readJson(promptResponse);
+
+      if (!promptResponse.ok || !promptData?.ok) {
+        throw new Error(
+          promptData?.error ??
+            "Gagal mengirim prompt",
+        );
+      }
+
+      console.log("✅ Prompt submitted");
+
+      setPrompt("");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Gagal mengirim prompt";
+
+      console.error("❌ Failed to send prompt:", error);
+
+      setSubmitError(message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function runTest() {
+    sendPrompt(
+      "Gunakan terminal tool untuk menjalankan perintah berikut: printf 'HERMES OFFICE TEST\n'. Setelah selesai, balas singkat bahwa berhasil.",
+    );
+  }
 
   /* =======================================================
      UI
   ======================================================= */
+
+  const busy = sending;
 
   return (
     <main
@@ -505,7 +667,7 @@ function runTest() {
         >
           <button
             onClick={runTest}
-            disabled={!connected}
+            disabled={!connected || busy}
             style={{
               padding:
                 "10px 18px",
@@ -513,12 +675,12 @@ function runTest() {
               border:
                 "1px solid #3f3f46",
               background:
-                connected
+                connected && !busy
                   ? "#27272a"
                   : "#18181b",
               color: "white",
               cursor:
-                connected
+                connected && !busy
                   ? "pointer"
                   : "not-allowed",
               fontFamily:
@@ -567,7 +729,8 @@ function runTest() {
             }
             onKeyDown={(e) => {
               if (
-                e.key === "Enter"
+                e.key === "Enter" &&
+                !busy
               ) {
                 sendPrompt(prompt);
               }
@@ -595,6 +758,7 @@ function runTest() {
             }
             disabled={
               !connected ||
+              busy ||
               !prompt.trim()
             }
             style={{
@@ -608,6 +772,7 @@ function runTest() {
               color: "white",
               cursor:
                 connected &&
+                !busy &&
                 prompt.trim()
                   ? "pointer"
                   : "not-allowed",
@@ -615,9 +780,28 @@ function runTest() {
                 "monospace",
             }}
           >
-            SEND
+            {busy ? "MENUNGGU..." : "SEND"}
           </button>
         </div>
+
+        {/* SUBMIT ERROR */}
+
+        {submitError && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: "8px 12px",
+              borderRadius: 8,
+              border:
+                "1px solid #7f1d1d",
+              background:
+                "#1c1010",
+              color: "#f87171",
+            }}
+          >
+            {submitError}
+          </div>
+        )}
 
         {/* EVENT LOG */}
 

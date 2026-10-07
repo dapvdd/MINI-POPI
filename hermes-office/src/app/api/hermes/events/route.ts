@@ -13,11 +13,16 @@ export async function GET() {
       getHermesClient();
 
       const send = (state: unknown) => {
-        controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify(state)}\n\n`,
-          ),
-        );
+        try {
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify(state)}\n\n`,
+            ),
+          );
+        } catch {
+          unsubscribe?.();
+          unsubscribe = null;
+        }
       };
 
       unsubscribe = subscribeToHermesState(send);

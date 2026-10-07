@@ -26,7 +26,12 @@ export function getHermesClient() {
     }
   });
 
-  client.connect();
+  client.connect().catch((error) => {
+    console.error(
+      "❌ Hermes connect failed:",
+      error instanceof Error ? error.message : error,
+    );
+  });
 
   return client;
 }
