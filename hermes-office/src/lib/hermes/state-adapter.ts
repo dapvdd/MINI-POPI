@@ -45,6 +45,25 @@ function readErrorMessage(payload: Record<string, unknown>) {
   return null;
 }
 
+const TERMINAL_TOOL_MARKERS = [
+  "shell",
+  "terminal",
+  "bash",
+  "powershell",
+  "cmd",
+  "exec",
+];
+
+function isTerminalTool(name: string | null) {
+  if (!name) {
+    return false;
+  }
+
+  const lower = name.toLowerCase();
+
+  return TERMINAL_TOOL_MARKERS.some((marker) => lower.includes(marker));
+}
+
 export function mapEventToState(
   current: AgentState,
   event: HermesEvent,
@@ -72,17 +91,26 @@ export function mapEventToState(
         ? current
         : { ...current, status: "THINKING" };
 
+    case "message.delta":
+      return current.status === "WORKING"
+        ? current
+        : { ...current, status: "WORKING" };
+
     case "tool.generating":
       return {
         ...current,
-        status: "USING_TOOL",
+        status: isTerminalTool(asString(payload.name))
+          ? "TERMINAL"
+          : "USING_TOOL",
         tool: asString(payload.name),
       };
 
     case "tool.start":
       return {
         ...current,
-        status: "USING_TOOL",
+        status: isTerminalTool(asString(payload.name))
+          ? "TERMINAL"
+          : "USING_TOOL",
         tool: asString(payload.name),
         command:
           asString(payload.context) ??

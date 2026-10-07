@@ -28,7 +28,7 @@ describe("mapEventToState", () => {
     expect(state.status).toBe("THINKING");
   });
 
-  it("maps tool.start to USING_TOOL", () => {
+  it("maps terminal tool.start to TERMINAL", () => {
     const state = mapEventToState(initialState, {
       type: "tool.start",
       payload: {
@@ -39,9 +39,38 @@ describe("mapEventToState", () => {
       },
     });
 
-    expect(state.status).toBe("USING_TOOL");
+    expect(state.status).toBe("TERMINAL");
     expect(state.tool).toBe("shell.exec");
     expect(state.command).toBe("printf hello");
+  });
+
+  it("maps non-terminal tool.start to USING_TOOL", () => {
+    const state = mapEventToState(initialState, {
+      type: "tool.start",
+      payload: {
+        name: "file.read",
+        args: {
+          command: "cat notes.md",
+        },
+      },
+    });
+
+    expect(state.status).toBe("USING_TOOL");
+    expect(state.tool).toBe("file.read");
+  });
+
+  it("maps message.delta to WORKING", () => {
+    const state = mapEventToState(initialState, {
+      type: "message.delta",
+    });
+
+    expect(state.status).toBe("WORKING");
+
+    const repeated = mapEventToState(state, {
+      type: "message.delta",
+    });
+
+    expect(repeated).toBe(state);
   });
 
   it("maps tool.complete to WORKING", () => {

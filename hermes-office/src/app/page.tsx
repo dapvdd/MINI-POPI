@@ -304,6 +304,7 @@ type SseState = {
   tool?: string | null;
   command?: string | null;
   lastOutput?: string | null;
+  lastError?: string | null;
 };
 
 export default function Home() {
@@ -332,6 +333,9 @@ export default function Home() {
   const [submitError, setSubmitError] =
     useState<string | null>(null);
 
+  const [runError, setRunError] =
+    useState<string | null>(null);
+
   useEffect(() => {
     let source: EventSource | null = null;
     let retryTimer: number | null = null;
@@ -355,6 +359,7 @@ export default function Home() {
       const nextTool = state.tool ?? "-";
       const nextCommand = state.command ?? "-";
       const nextOutput = state.lastOutput ?? "-";
+      const nextRunError = state.lastError ?? null;
 
       setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
       setTool((prev) => (prev === nextTool ? prev : nextTool));
@@ -363,6 +368,9 @@ export default function Home() {
       );
       setOutput((prev) =>
         prev === nextOutput ? prev : nextOutput,
+      );
+      setRunError((prev) =>
+        prev === nextRunError ? prev : nextRunError,
       );
 
       const line =
@@ -625,6 +633,25 @@ export default function Home() {
             {status}
           </div>
         </div>
+
+        {/* RUN ERROR */}
+
+        {runError && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: "8px 12px",
+              borderRadius: 8,
+              border:
+                "1px solid #7f1d1d",
+              background:
+                "#1c1010",
+              color: "#f87171",
+            }}
+          >
+            {runError}
+          </div>
+        )}
 
         {/* TOOL INFO */}
 
