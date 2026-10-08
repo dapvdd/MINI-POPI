@@ -299,13 +299,14 @@ function Scene({ status }: { status: AgentStatus }) {
    MAIN
 ========================================================= */
 
-type SseState = {
-  status?: string;
-  tool?: string | null;
-  command?: string | null;
-  lastOutput?: string | null;
-  lastError?: string | null;
-};
+  type SseState = {
+    status?: string;
+    tool?: string | null;
+    command?: string | null;
+    lastOutput?: string | null;
+    lastError?: string | null;
+    lastResponse?: string | null;
+  };
 
 export default function Home() {
   const [connected, setConnected] = useState(false);
@@ -320,19 +321,22 @@ export default function Home() {
 
   const [output, setOutput] =
     useState("-");
+ 
+  const [lastResponse, setLastResponse] =
+    useState("-");
 
   const [prompt, setPrompt] =
     useState("");
-
+ 
   const [events, setEvents] =
     useState<string[]>([]);
-
+ 
   const [sending, setSending] =
     useState(false);
-
+ 
   const [submitError, setSubmitError] =
     useState<string | null>(null);
-
+ 
   const [runError, setRunError] =
     useState<string | null>(null);
 
@@ -360,6 +364,7 @@ export default function Home() {
       const nextCommand = state.command ?? "-";
       const nextOutput = state.lastOutput ?? "-";
       const nextRunError = state.lastError ?? null;
+      const nextResponse = state.lastResponse ?? "-";
 
       setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
       setTool((prev) => (prev === nextTool ? prev : nextTool));
@@ -368,6 +373,9 @@ export default function Home() {
       );
       setOutput((prev) =>
         prev === nextOutput ? prev : nextOutput,
+      );
+      setLastResponse((prev) =>
+        prev === nextResponse ? prev : nextResponse,
       );
       setRunError((prev) =>
         prev === nextRunError ? prev : nextRunError,
@@ -678,9 +686,23 @@ export default function Home() {
             marginTop: 4,
             color: "#86efac",
             whiteSpace: "pre-wrap",
+            maxHeight: 120,
+            overflow: "auto",
           }}
         >
           Output: {output}
+        </div>
+
+        <div
+          style={{
+            marginTop: 8,
+            color: "#a5b4fc",
+            whiteSpace: "pre-wrap",
+            maxHeight: 120,
+            overflow: "auto",
+          }}
+        >
+          Latest Response: {lastResponse}
         </div>
 
         {/* BUTTONS */}

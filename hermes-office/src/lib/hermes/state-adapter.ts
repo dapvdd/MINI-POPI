@@ -33,6 +33,50 @@ function readToolOutput(payload: Record<string, unknown>) {
   return null;
 }
 
+function readMessageContent(payload: Record<string, unknown>) {
+  const content = payload.content;
+
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    const parts: string[] = [];
+
+    for (const part of content) {
+      if (part && typeof part === "object") {
+        const type = (part as Record<string, unknown>).type;
+
+        if (type === "thought" || type === "thinking") {
+          continue;
+        }
+
+        const text =
+          (part as Record<string, unknown>).text ??
+          (part as Record<string, unknown>).content;
+
+        if (typeof text === "string") {
+          parts.push(text);
+        }
+      }
+    }
+
+    if (parts.length > 0) {
+      return parts.join("\n\n");
+    }
+  }
+
+  for (const key of ["text", "response", "result_text"] as const) {
+    const value = payload[key];
+
+    if (typeof value === "string") {
+      return value;
+    }
+  }
+
+  return null;
+}
+
 function readErrorMessage(payload: Record<string, unknown>) {
   for (const key of ["message", "error", "detail"] as const) {
     const value = payload[key];
@@ -83,6 +127,7 @@ export function mapEventToState(
         status: "THINKING",
         lastOutput: null,
         lastError: null,
+        lastResponse: null,
       };
 
     case "thinking.delta":
@@ -103,6 +148,7 @@ export function mapEventToState(
           ? "TERMINAL"
           : "USING_TOOL",
         tool: asString(payload.name),
+        command: asString(payload.command) ?? current.command,
       };
 
     case "tool.start":
@@ -126,6 +172,7 @@ export function mapEventToState(
         ...current,
         status: "WORKING",
         tool: asString(payload.name) ?? current.tool,
+        command: asString(payload.command) ?? current.command,
         lastOutput:
           readToolOutput(payload) ?? current.lastOutput,
         lastError:
@@ -137,6 +184,7 @@ export function mapEventToState(
 
     case "message.complete": {
       const failed = payload.status === "error";
+      const response = readMessageContent(payload);
 
       return {
         ...current,
@@ -147,6 +195,7 @@ export function mapEventToState(
         lastError: failed
           ? readErrorMessage(payload) ?? current.lastError
           : null,
+        lastResponse: response ?? current.lastResponse,
       };
     }
 

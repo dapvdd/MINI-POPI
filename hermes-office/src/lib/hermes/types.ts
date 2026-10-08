@@ -13,5 +13,6 @@ export interface AgentState {
   command: string | null;
   lastOutput: string | null;
   lastError: string | null;
+  lastResponse: string | null;
   startedAt: number | null;
 }

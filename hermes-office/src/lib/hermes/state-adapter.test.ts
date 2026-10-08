@@ -8,6 +8,7 @@ const initialState: AgentState = {
   command: null,
   lastOutput: null,
   lastError: null,
+  lastResponse: null,
   startedAt: null,
 };
 

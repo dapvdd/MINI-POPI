@@ -27,6 +27,7 @@ export class HermesClient {
     command: null,
     lastOutput: null,
     lastError: null,
+    lastResponse: null,
     startedAt: null,
   };
 
