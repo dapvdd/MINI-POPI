@@ -2,9 +2,18 @@
 
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import * as THREE from "three";
 import type { AgentStatus } from "@/lib/hermes/types";
+import {
+  conversationReducer,
+  initialConversationState,
+} from "@/lib/conversation";
+import {
+  workersToArray,
+  type WorkerState,
+  type WorkerStatus,
+} from "@/lib/hermes/workers";
 import {
   BASE_Y,
   getBodyColor,
@@ -279,6 +288,22 @@ type SseState = {
   lastOutput?: string | null;
   lastError?: string | null;
   lastResponse?: string | null;
+  turnSeq?: number;
+  lastResponseStatus?: string | null;
+  gatewayConnected?: boolean;
+  workers?: Record<string, WorkerState>;
+};
+
+const WORKER_DOT: Record<WorkerStatus, string> = {
+  queued: "bg-zinc-500",
+  running: "bg-sky-400",
+  thinking: "bg-violet-400",
+  using_tool: "bg-orange-400",
+  completed: "bg-emerald-400",
+  failed: "bg-red-500",
+  error: "bg-red-500",
+  timeout: "bg-amber-400",
+  interrupted: "bg-zinc-400",
 };
 
 const BUSY_STATUSES: AgentStatus[] = [
@@ -310,21 +335,27 @@ function StatusBadge({ status }: { status: AgentStatus }) {
   );
 }
 
-function ConnectionBadge({ connected }: { connected: boolean }) {
+function LinkBadge({
+  label,
+  online,
+}: {
+  label: string;
+  online: boolean;
+}) {
   return (
     <span
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wider ${
-        connected
+        online
           ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
           : "border-red-500/40 bg-red-500/10 text-red-400"
       }`}
     >
       <span
         className={`h-2 w-2 rounded-full ${
-          connected ? "bg-emerald-400" : "bg-red-400"
+          online ? "bg-emerald-400" : "bg-red-400"
         }`}
       />
-      {connected ? "Connected" : "Offline"}
+      {label} {online ? "up" : "down"}
     </span>
   );
 }
@@ -363,6 +394,7 @@ const PANEL_HEADER =
 
 export default function Home() {
   const [connected, setConnected] = useState(false);
+  const [gatewayConnected, setGatewayConnected] = useState(false);
   const [status, setStatus] = useState<AgentStatus>("OFFLINE");
   const [tool, setTool] = useState("-");
   const [command, setCommand] = useState("-");
@@ -374,9 +406,16 @@ export default function Home() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [conversation, setConversation] = useState<
-    Array<{ user: string; assistant: string }>
-  >([]);
+  const [conversation, dispatchConversation] = useReducer(
+    conversationReducer,
+    initialConversationState,
+  );
+  const [workers, setWorkers] = useState<WorkerState[]>([]);
+
+  const syncedRef = useRef(false);
+  const turnSeqRef = useRef(0);
+  const gatewayRef = useRef(false);
+  const workersSigRef = useRef("");
 
   useEffect(() => {
     const el = document.getElementById("conversation-panel");
@@ -407,6 +446,39 @@ export default function Home() {
       const nextOutput = state.lastOutput ?? "-";
       const nextRunError = state.lastError ?? null;
       const nextResponse = state.lastResponse ?? "-";
+      const nextTurnSeq = state.turnSeq ?? 0;
+      const nextResponseStatus = state.lastResponseStatus ?? null;
+      const nextGateway = state.gatewayConnected ?? false;
+
+      /*
+       * Conversation sync: the first frame fixes the baseline turnSeq so a
+       * reconnect does not replay history; every later increment attaches the
+       * finished response to the matching pending prompt exactly once.
+       */
+      if (!syncedRef.current) {
+        syncedRef.current = true;
+        turnSeqRef.current = nextTurnSeq;
+        gatewayRef.current = nextGateway;
+        dispatchConversation({
+          type: "sync-turn-seq",
+          turnSeq: nextTurnSeq,
+        });
+      } else if (nextTurnSeq > turnSeqRef.current) {
+        turnSeqRef.current = nextTurnSeq;
+        dispatchConversation({
+          type: "turn-completed",
+          turnSeq: nextTurnSeq,
+          text: nextResponse,
+          fallback: nextRunError,
+          failed:
+            nextResponseStatus === "error" || nextStatus === "ERROR",
+        });
+      }
+
+      if (gatewayRef.current && !nextGateway) {
+        dispatchConversation({ type: "gateway-lost" });
+      }
+      gatewayRef.current = nextGateway;
 
       setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
       setTool((prev) => (prev === nextTool ? prev : nextTool));
@@ -422,6 +494,19 @@ export default function Home() {
       setRunError((prev) =>
         prev === nextRunError ? prev : nextRunError,
       );
+      setGatewayConnected((prev) =>
+        prev === nextGateway ? prev : nextGateway,
+      );
+
+      const nextWorkers = workersToArray(state.workers ?? {});
+      const workersSig = nextWorkers
+        .map((worker) => `${worker.id}:${worker.updatedAt}:${worker.status}`)
+        .join("|");
+
+      if (workersSig !== workersSigRef.current) {
+        workersSigRef.current = workersSig;
+        setWorkers(nextWorkers);
+      }
 
       const line =
         nextTool === "-"
@@ -541,6 +626,7 @@ export default function Home() {
 
     setSending(true);
     setSubmitError(null);
+    dispatchConversation({ type: "user-submitted", text: clean });
 
     try {
       let currentSessionId = await ensureSession();
@@ -583,16 +669,6 @@ export default function Home() {
         }
       }
 
-      setConversation((prev) => {
-        const next = [
-          ...prev,
-          {
-            user: clean,
-            assistant: lastResponse !== "-" ? lastResponse : "",
-          },
-        ];
-        return next.slice(-20);
-      });
       setPrompt("");
     } catch (error) {
       const message =
@@ -600,6 +676,10 @@ export default function Home() {
           ? error.message
           : "Gagal mengirim prompt";
       console.error("Failed to send prompt:", error);
+      dispatchConversation({
+        type: "submit-failed",
+        message,
+      });
       setSubmitError(message);
     } finally {
       setSending(false);
@@ -618,6 +698,9 @@ export default function Home() {
 
   const busy = sending;
   const canSend = connected && !busy && prompt.trim().length > 0;
+  const turnCount = conversation.messages.filter(
+    (message) => message.role === "user",
+  ).length;
 
   return (
     <main className="flex min-h-dvh flex-col overflow-x-hidden bg-zinc-950 font-mono text-zinc-100 lg:h-dvh lg:overflow-hidden">
@@ -636,9 +719,10 @@ export default function Home() {
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <StatusBadge status={status} />
-          <ConnectionBadge connected={connected} />
+          <LinkBadge label="Gateway" online={gatewayConnected} />
+          <LinkBadge label="SSE" online={connected} />
         </div>
       </header>
 
@@ -695,6 +779,10 @@ export default function Home() {
                 <span className="text-[10px] uppercase tracking-widest text-red-400">
                   error
                 </span>
+              ) : connected && !gatewayConnected ? (
+                <span className="text-[10px] uppercase tracking-widest text-amber-400">
+                  gateway offline
+                </span>
               ) : (
                 <span className="text-[10px] uppercase tracking-widest text-zinc-600">
                   live
@@ -710,6 +798,19 @@ export default function Home() {
               ) : null}
 
               <dl className="grid grid-cols-[84px_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
+                <dt className="text-zinc-500">Gateway</dt>
+                <dd
+                  className={
+                    gatewayConnected
+                      ? "text-emerald-400"
+                      : "text-red-400"
+                  }
+                >
+                  {gatewayConnected
+                    ? "connected"
+                    : "offline"}
+                </dd>
+
                 <dt className="text-zinc-500">Tool</dt>
                 <dd
                   className="truncate text-zinc-200"
@@ -734,6 +835,51 @@ export default function Home() {
                 value={lastResponse}
                 className="text-indigo-300"
               />
+
+              {workers.length > 0 ? (
+                <div>
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+                    Workers · {workers.length}
+                  </div>
+                  <ul className="space-y-1.5">
+                    {workers.map((worker) => (
+                      <li
+                        key={worker.id}
+                        data-worker-id={worker.id}
+                        className="rounded-lg border border-zinc-800 bg-zinc-950/50 px-2 py-1.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${WORKER_DOT[worker.status]}`}
+                            />
+                            <span
+                              className="truncate text-[11px] text-zinc-200"
+                              title={worker.goal}
+                            >
+                              {worker.goal || "untitled task"}
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-[10px] uppercase tracking-wide text-zinc-500">
+                            {worker.status.replace("_", " ")}
+                            {worker.taskCount > 1
+                              ? ` · ${worker.taskIndex + 1}/${worker.taskCount}`
+                              : ""}
+                          </span>
+                        </div>
+                        {worker.activity ? (
+                          <div
+                            className="mt-0.5 truncate text-[10px] text-zinc-500"
+                            title={worker.activity}
+                          >
+                            {worker.activity}
+                          </div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -794,8 +940,7 @@ export default function Home() {
               Conversation
             </span>
             <span className="text-[10px] uppercase tracking-widest text-zinc-600">
-              {conversation.length}{" "}
-              {conversation.length === 1 ? "turn" : "turns"}
+              {turnCount} {turnCount === 1 ? "turn" : "turns"}
             </span>
           </div>
 
@@ -804,7 +949,7 @@ export default function Home() {
             id="conversation-panel"
             className="h-[360px] min-h-0 overflow-y-auto p-4 lg:h-auto lg:flex-1"
           >
-            {conversation.length === 0 ? (
+            {conversation.messages.length === 0 ? (
               <div className="flex h-full items-center justify-center text-center text-xs text-zinc-600">
                 <p>
                   No conversation yet.
@@ -813,38 +958,66 @@ export default function Home() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {conversation.map((turn, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="flex justify-end">
+              <div className="space-y-3">
+                {conversation.messages.map((message) =>
+                  message.role === "user" ? (
+                    <div
+                      key={message.id}
+                      data-role="user"
+                      className="flex justify-end"
+                    >
                       <div className="max-w-[85%] rounded-2xl rounded-br-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2">
                         <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-amber-400/80">
                           You
                         </div>
                         <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-100">
-                          {turn.user}
+                          {message.text}
                         </div>
                       </div>
                     </div>
-
-                    <div className="flex justify-start">
-                      <div className="max-w-[85%] rounded-2xl rounded-bl-sm border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
-                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-emerald-400/80">
+                  ) : (
+                    <div
+                      key={message.id}
+                      data-role="assistant"
+                      data-status={message.status}
+                      className="flex justify-start"
+                    >
+                      <div
+                        className={`max-w-[85%] rounded-2xl rounded-bl-sm border px-3 py-2 ${
+                          message.status === "error"
+                            ? "border-red-500/40 bg-red-500/10"
+                            : "border-emerald-500/30 bg-emerald-500/10"
+                        }`}
+                      >
+                        <div
+                          className={`mb-1 text-[10px] font-semibold uppercase tracking-widest ${
+                            message.status === "error"
+                              ? "text-red-400/80"
+                              : "text-emerald-400/80"
+                          }`}
+                        >
                           Hermes
                         </div>
-                        {turn.assistant ? (
-                          <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-emerald-100">
-                            {turn.assistant}
+                        {message.status === "pending" ? (
+                          <div className="flex items-center gap-2 text-sm italic text-zinc-500">
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-zinc-500" />
+                            Waiting for response…
                           </div>
                         ) : (
-                          <div className="text-sm italic text-zinc-500">
-                            Waiting for response…
+                          <div
+                            className={`whitespace-pre-wrap break-words text-sm leading-relaxed ${
+                              message.status === "error"
+                                ? "text-red-200"
+                                : "text-emerald-100"
+                            }`}
+                          >
+                            {message.text}
                           </div>
                         )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ),
+                )}
               </div>
             )}
           </div>

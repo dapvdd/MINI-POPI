@@ -29,6 +29,10 @@ export class HermesClient {
     lastError: null,
     lastResponse: null,
     startedAt: null,
+    turnSeq: 0,
+    lastResponseStatus: null,
+    gatewayConnected: false,
+    workers: {},
   };
 
   constructor(
@@ -62,11 +66,22 @@ export class HermesClient {
           this.state.status === "OFFLINE" ||
           this.state.status === "ERROR";
 
-        if (stale || this.state.lastError) {
+        const nextStatus = stale ? "IDLE" : this.state.status;
+        const nextError =
+          stale || this.state.lastError
+            ? null
+            : this.state.lastError;
+
+        if (
+          nextStatus !== this.state.status ||
+          nextError !== this.state.lastError ||
+          !this.state.gatewayConnected
+        ) {
           this.updateState({
             ...this.state,
-            status: stale ? "IDLE" : this.state.status,
-            lastError: null,
+            status: nextStatus,
+            lastError: nextError,
+            gatewayConnected: true,
           });
         }
 
@@ -81,10 +96,14 @@ export class HermesClient {
         this.wsReady = null;
         this.ws = null;
 
-        if (this.state.status !== "OFFLINE") {
+        if (
+          this.state.status !== "OFFLINE" ||
+          this.state.gatewayConnected
+        ) {
           this.updateState({
             ...this.state,
             status: "OFFLINE",
+            gatewayConnected: false,
           });
         }
 
@@ -102,6 +121,7 @@ export class HermesClient {
           ...this.state,
           status: "ERROR",
           lastError: error.message,
+          gatewayConnected: false,
         });
 
         reject(error);

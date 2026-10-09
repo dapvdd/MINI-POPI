@@ -1,4 +1,17 @@
-import type { AgentState } from "./types";
+import type { AgentState, TurnResultStatus } from "./types";
+import { applyWorkerEvent } from "./workers";
+
+function readTurnResultStatus(value: unknown): TurnResultStatus {
+  if (value === "error") {
+    return "error";
+  }
+
+  if (value === "interrupted") {
+    return "interrupted";
+  }
+
+  return "complete";
+}
 
 interface HermesEvent {
   type: string;
@@ -114,6 +127,19 @@ export function mapEventToState(
 ): AgentState {
   const payload = event.payload ?? {};
 
+  // Delegated subagents are application state, not tool chrome: route every
+  // subagent.* frame through the worker adapter without touching agent status.
+  if (event.type.startsWith("subagent.")) {
+    const workers = applyWorkerEvent(current.workers, {
+      type: event.type,
+      payload,
+    });
+
+    return workers === current.workers
+      ? current
+      : { ...current, workers };
+  }
+
   switch (event.type) {
     case "gateway.ready":
       return current.status === "OFFLINE" ||
@@ -183,7 +209,8 @@ export function mapEventToState(
       };
 
     case "message.complete": {
-      const failed = payload.status === "error";
+      const resultStatus = readTurnResultStatus(payload.status);
+      const failed = resultStatus === "error";
       const response = readMessageContent(payload);
 
       return {
@@ -196,6 +223,8 @@ export function mapEventToState(
           ? readErrorMessage(payload) ?? current.lastError
           : null,
         lastResponse: response ?? current.lastResponse,
+        turnSeq: current.turnSeq + 1,
+        lastResponseStatus: resultStatus,
       };
     }
 

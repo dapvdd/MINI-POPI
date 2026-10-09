@@ -10,6 +10,10 @@ const initialState: AgentState = {
   lastError: null,
   lastResponse: null,
   startedAt: null,
+  turnSeq: 0,
+  lastResponseStatus: null,
+  gatewayConnected: true,
+  workers: {},
 };
 
 describe("mapEventToState", () => {
@@ -199,5 +203,126 @@ describe("mapEventToState", () => {
     const busy = mapEventToState(offline, { type: "reasoning.delta" });
 
     expect(mapEventToState(busy, { type: "gateway.ready" })).toBe(busy);
+  });
+
+  it("increments turnSeq once per completed turn", () => {
+    const first = mapEventToState(initialState, {
+      type: "message.complete",
+      payload: { status: "complete", text: "answer A" },
+    });
+
+    expect(first.turnSeq).toBe(1);
+    expect(first.lastResponse).toBe("answer A");
+    expect(first.lastResponseStatus).toBe("complete");
+
+    const second = mapEventToState(first, {
+      type: "message.complete",
+      payload: { status: "complete", text: "answer B" },
+    });
+
+    expect(second.turnSeq).toBe(2);
+    expect(second.lastResponse).toBe("answer B");
+  });
+
+  it("records the turn result status for complete/error/interrupted", () => {
+    expect(
+      mapEventToState(initialState, {
+        type: "message.complete",
+        payload: { status: "interrupted" },
+      }).lastResponseStatus,
+    ).toBe("interrupted");
+
+    const failed = mapEventToState(initialState, {
+      type: "message.complete",
+      payload: { status: "error", message: "boom" },
+    });
+
+    expect(failed.status).toBe("ERROR");
+    expect(failed.lastResponseStatus).toBe("error");
+  });
+
+  it("does not advance turnSeq for non-terminal events", () => {
+    const thinking = mapEventToState(initialState, {
+      type: "reasoning.delta",
+    });
+
+    expect(thinking.turnSeq).toBe(0);
+
+    const working = mapEventToState(thinking, {
+      type: "message.delta",
+    });
+
+    expect(working.turnSeq).toBe(0);
+  });
+});
+
+describe("mapEventToState subagent routing", () => {
+  it("creates and advances a worker without changing agent status", () => {
+    const started = mapEventToState(initialState, {
+      type: "subagent.start",
+      payload: {
+        subagent_id: "sa-0-abcd1234",
+        goal: "research pricing",
+        task_index: 0,
+        task_count: 2,
+        depth: 1,
+        model: "sonnet",
+      },
+    });
+
+    expect(started.status).toBe(initialState.status);
+    expect(Object.keys(started.workers)).toHaveLength(1);
+
+    const worker = started.workers["sa-0-abcd1234"];
+
+    expect(worker.status).toBe("running");
+    expect(worker.goal).toBe("research pricing");
+    expect(worker.taskCount).toBe(2);
+    expect(worker.startedAt).not.toBeNull();
+
+    const completed = mapEventToState(started, {
+      type: "subagent.complete",
+      payload: {
+        subagent_id: "sa-0-abcd1234",
+        goal: "research pricing",
+        task_index: 0,
+        task_count: 2,
+        status: "completed",
+        summary: "3 competitors mapped",
+        duration_seconds: 12.5,
+      },
+    });
+
+    expect(completed.status).toBe(initialState.status);
+    expect(completed.workers["sa-0-abcd1234"].status).toBe("completed");
+    expect(completed.workers["sa-0-abcd1234"].summary).toBe(
+      "3 competitors mapped",
+    );
+  });
+
+  it("returns the same state for an unmatched subagent event", () => {
+    const state = mapEventToState(initialState, {
+      type: "subagent.progress",
+      payload: {
+        subagent_id: "sa-0-aaaa1111",
+        goal: "g",
+        task_index: 0,
+        task_count: 1,
+        text: "🔀 tool-a",
+      },
+    });
+
+    const repeated = mapEventToState(state, {
+      type: "subagent.text",
+      payload: {
+        subagent_id: "sa-0-aaaa1111",
+        goal: "g",
+        task_index: 0,
+        task_count: 1,
+        text: "ignored",
+      },
+    });
+
+    expect(repeated).toBe(state);
   });
 });
