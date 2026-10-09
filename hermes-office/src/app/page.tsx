@@ -1,9 +1,7 @@
 "use client";
 
-import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { Canvas } from "@react-three/fiber";
 import { useEffect, useReducer, useRef, useState } from "react";
-import * as THREE from "three";
 import type { AgentStatus } from "@/lib/hermes/types";
 import {
   conversationReducer,
@@ -14,268 +12,9 @@ import {
   type WorkerState,
   type WorkerStatus,
 } from "@/lib/hermes/workers";
-import {
-  BASE_Y,
-  getBodyColor,
-  getPointLightColor,
-  getPointLightIntensity,
-  getPopiPose,
-  getScreenColor,
-  getScreenGlow,
-} from "@/lib/popi";
+import { getBodyColor } from "@/lib/popi";
+import { OfficeScene } from "@/components/office/OfficeScene";
 
-/* =========================================================
-   3D AGENT
-========================================================= */
-
-function Agent({ status }: { status: AgentStatus }) {
-  const root = useRef<THREE.Group>(null);
-  const body = useRef<THREE.Group>(null);
-  const head = useRef<THREE.Group>(null);
-  const armLeft = useRef<THREE.Group>(null);
-  const armRight = useRef<THREE.Group>(null);
-  const eyeLeft = useRef<THREE.Mesh>(null);
-  const eyeRight = useRef<THREE.Mesh>(null);
-  const bodyColor = getBodyColor(status);
-
-  useFrame((state, delta) => {
-    const pose = getPopiPose(status, state.clock.elapsedTime);
-
-    if (!root.current || !body.current || !head.current) {
-      return;
-    }
-
-    root.current.position.set(
-      pose.position[0],
-      pose.position[1],
-      pose.position[2],
-    );
-    root.current.rotation.x = pose.rotation[0];
-    root.current.rotation.z = pose.rotation[2];
-    root.current.rotation.y = THREE.MathUtils.damp(
-      root.current.rotation.y,
-      pose.facing,
-      6,
-      delta,
-    );
-    body.current.scale.setScalar(pose.bodyScale);
-    head.current.rotation.set(
-      pose.headRotation[0],
-      pose.headRotation[1],
-      pose.headRotation[2],
-    );
-
-    if (armLeft.current) {
-      armLeft.current.rotation.x = pose.armLeft;
-    }
-
-    if (armRight.current) {
-      armRight.current.rotation.x = pose.armRight;
-    }
-
-    if (eyeLeft.current) {
-      eyeLeft.current.scale.set(1, pose.eyeOpen, 1);
-    }
-
-    if (eyeRight.current) {
-      eyeRight.current.scale.set(1, pose.eyeOpen, 1);
-    }
-  });
-
-  return (
-    <group ref={root} position={[0, BASE_Y, 0]}>
-      <group ref={body}>
-        {/* BODY */}
-        <mesh position={[0, 0.8, 0]}>
-          <capsuleGeometry args={[0.35, 0.7, 8, 16]} />
-          <meshStandardMaterial color={bodyColor} />
-        </mesh>
-
-        {/* HEAD */}
-        <group ref={head} position={[0, 1.65, 0]}>
-          <mesh>
-            <sphereGeometry args={[0.38, 24, 24]} />
-            <meshStandardMaterial color="#e5e7eb" />
-          </mesh>
-
-          {/* EYES */}
-          <mesh ref={eyeLeft} position={[-0.13, 0.03, 0.34]}>
-            <sphereGeometry args={[0.045, 12, 12]} />
-            <meshStandardMaterial color="#111827" />
-          </mesh>
-          <mesh ref={eyeRight} position={[0.13, 0.03, 0.34]}>
-            <sphereGeometry args={[0.045, 12, 12]} />
-            <meshStandardMaterial color="#111827" />
-          </mesh>
-        </group>
-
-        {/* ARMS (pivoted at the shoulder) */}
-        <group ref={armLeft} position={[-0.42, 1.05, 0]}>
-          <mesh position={[0, -0.275, 0]}>
-            <boxGeometry args={[0.16, 0.55, 0.16]} />
-            <meshStandardMaterial color={bodyColor} />
-          </mesh>
-        </group>
-        <group ref={armRight} position={[0.42, 1.05, 0]}>
-          <mesh position={[0, -0.275, 0]}>
-            <boxGeometry args={[0.16, 0.55, 0.16]} />
-            <meshStandardMaterial color={bodyColor} />
-          </mesh>
-        </group>
-      </group>
-    </group>
-  );
-}
-
-/* =========================================================
-   DESK
-========================================================= */
-
-function Desk() {
-  return (
-    <group>
-      <mesh position={[0, 0.65, 0]}>
-        <boxGeometry args={[4, 0.25, 2]} />
-        <meshStandardMaterial color="#3f3f46" />
-      </mesh>
-      {[
-        [-1.7, 0.2, -0.7],
-        [1.7, 0.2, -0.7],
-        [-1.7, 0.2, 0.7],
-        [1.7, 0.2, 0.7],
-      ].map((position, index) => (
-        <mesh
-          key={index}
-          position={position as [number, number, number]}
-        >
-          <boxGeometry args={[0.15, 0.9, 0.15]} />
-          <meshStandardMaterial color="#27272a" />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-/* =========================================================
-   MONITOR
-========================================================= */
-
-const LINE_WIDTHS = [1.5, 0.9, 1.25, 0.7, 1.05];
-
-function TerminalLines({ active }: { active: boolean }) {
-  const group = useRef<THREE.Group>(null);
-
-  useFrame((state) => {
-    if (!group.current) return;
-
-    group.current.visible = active;
-
-    if (!active) return;
-
-    const t = state.clock.elapsedTime;
-
-    group.current.children.forEach((line, index) => {
-      const span = 1.0;
-      const raw = index * 0.24 - t * 0.4;
-      const wrapped = ((raw % span) + span) % span;
-      line.position.y = wrapped - span / 2;
-    });
-  });
-
-  return (
-    <group ref={group} position={[0, 0, 0.08]}>
-      {LINE_WIDTHS.map((width, index) => (
-        <mesh
-          key={index}
-          position={[-1 + width / 2, 0, 0]}
-        >
-          <boxGeometry args={[width, 0.05, 0.02]} />
-          <meshBasicMaterial color="#4ade80" />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-function Monitor({ status }: { status: AgentStatus }) {
-  const screen = useRef<THREE.MeshStandardMaterial>(null);
-
-  useFrame((state) => {
-    if (!screen.current) return;
-
-    screen.current.emissiveIntensity = getScreenGlow(
-      status,
-      state.clock.elapsedTime,
-    );
-  });
-
-  return (
-    <group position={[0, 1.45, -0.55]}>
-      <mesh>
-        <boxGeometry args={[2.2, 1.3, 0.12]} />
-        <meshStandardMaterial
-          ref={screen}
-          color="#09090b"
-          emissive={getScreenColor(status)}
-          emissiveIntensity={0.3}
-        />
-      </mesh>
-      <TerminalLines active={status === "TERMINAL"} />
-      <mesh position={[0, -0.8, 0]}>
-        <boxGeometry args={[0.12, 0.6, 0.12]} />
-        <meshStandardMaterial color="#52525b" />
-      </mesh>
-      <mesh position={[0, -1.1, 0]}>
-        <boxGeometry args={[0.7, 0.08, 0.35]} />
-        <meshStandardMaterial color="#52525b" />
-      </mesh>
-    </group>
-  );
-}
-
-/* =========================================================
-   SCENE
-========================================================= */
-
-function LightRig({ status }: { status: AgentStatus }) {
-  const light = useRef<THREE.PointLight>(null);
-
-  useFrame((state) => {
-    if (!light.current) return;
-
-    light.current.intensity = getPointLightIntensity(
-      status,
-      state.clock.elapsedTime,
-    );
-  });
-
-  return (
-    <pointLight
-      ref={light}
-      position={[0, 3, -2]}
-      intensity={1}
-      color={getPointLightColor(status)}
-    />
-  );
-}
-
-function Scene({ status }: { status: AgentStatus }) {
-  return (
-    <>
-      <ambientLight intensity={1.2} />
-      <directionalLight position={[5, 8, 5]} intensity={2} />
-      <LightRig status={status} />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.3, 0]}>
-        <planeGeometry args={[12, 10]} />
-        <meshStandardMaterial color="#18181b" />
-      </mesh>
-      <Desk />
-      <Monitor status={status} />
-      <Agent status={status} />
-      <OrbitControls enablePan={false} minDistance={4} maxDistance={12} />
-    </>
-  );
-}
 
 /* =========================================================
    UI HELPERS
@@ -732,8 +471,12 @@ export default function Home() {
         <section className="flex min-h-0 flex-col gap-4">
           {/* 3D VIEWPORT */}
           <div className="relative h-[300px] shrink-0 overflow-hidden rounded-xl border border-zinc-800 bg-gradient-to-b from-zinc-900/70 to-zinc-950 lg:h-auto lg:min-h-[220px] lg:flex-[7]">
-            <Canvas camera={{ position: [5, 4, 6], fov: 50 }}>
-              <Scene status={status} />
+            <Canvas
+              shadows
+              dpr={[1, 2]}
+              camera={{ position: [5, 4, 6], fov: 50 }}
+            >
+              <OfficeScene status={status} />
             </Canvas>
 
             <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
