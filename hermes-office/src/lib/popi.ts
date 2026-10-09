@@ -1,3 +1,4 @@
+import type { GatewayErrorKind } from "./hermes/connection";
 import type { AgentStatus } from "./hermes/types";
 
 export const BASE_Y = 0.05;
@@ -10,6 +11,50 @@ const SCREEN_STATUSES: AgentStatus[] = [
   "TERMINAL",
 ];
 
+/**
+ * Connection presence, derived from the two links the UI already tracks. This
+ * is deliberately separate from `AgentStatus`: a turn status can be stale or
+ * unknown while the transport is down, so presence decides whether Popi looks
+ * online, waiting on the Gateway, or fully offline.
+ */
+export type PopiPresence =
+  | "online"
+  | "gateway-down"
+  | "sse-down"
+  | "auth-error";
+
+export interface PopiPresenceInput {
+  /** Browser -> Next.js SSE link. */
+  sseConnected: boolean;
+  /** Next.js -> Hermes Gateway WebSocket link. */
+  gatewayConnected: boolean;
+  connectionError: GatewayErrorKind | null;
+}
+
+/**
+ * Precedence: no SSE means we cannot observe anything at all; an auth rejection
+ * is a permanent error; a connected SSE with a down Gateway is a patient wait.
+ */
+export function resolvePopiPresence({
+  sseConnected,
+  gatewayConnected,
+  connectionError,
+}: PopiPresenceInput): PopiPresence {
+  if (!sseConnected) {
+    return "sse-down";
+  }
+
+  if (connectionError === "auth") {
+    return "auth-error";
+  }
+
+  if (!gatewayConnected) {
+    return "gateway-down";
+  }
+
+  return "online";
+}
+
 export interface PopiPose {
   position: [number, number, number];
   rotation: [number, number, number];
@@ -21,8 +66,13 @@ export interface PopiPose {
   eyeOpen: number;
 }
 
-function blink(t: number) {
-  const phase = t % 3.7;
+export interface PopiPoseOptions {
+  presence?: PopiPresence;
+  reducedMotion?: boolean;
+}
+
+function blink(t: number, period = 3.7) {
+  const phase = t % period;
 
   return phase < 0.12 ? 0.12 : 1;
 }
@@ -31,10 +81,7 @@ export function isFacingScreen(status: AgentStatus) {
   return SCREEN_STATUSES.includes(status);
 }
 
-export function getPopiPose(
-  status: AgentStatus,
-  t: number,
-): PopiPose {
+function statusPose(status: AgentStatus, t: number): PopiPose {
   const eye = blink(t);
 
   switch (status) {
@@ -99,20 +146,7 @@ export function getPopiPose(
       };
 
     case "ERROR":
-      return {
-        position: [Math.sin(t * 38) * 0.06, BASE_Y, 0],
-        rotation: [0, 0, Math.sin(t * 30) * 0.12],
-        facing: 0,
-        headRotation: [
-          -0.1,
-          Math.sin(t * 20) * 0.12,
-          Math.sin(t * 30) * 0.15,
-        ],
-        armLeft: -0.6 + Math.sin(t * 25) * 0.2,
-        armRight: 0.6 - Math.sin(t * 25) * 0.2,
-        bodyScale: 1 + Math.sin(t * 12) * 0.03,
-        eyeOpen: 1.4,
-      };
+      return errorPose(t);
 
     case "IDLE":
     default:
@@ -133,7 +167,135 @@ export function getPopiPose(
   }
 }
 
-export function getBodyColor(status: AgentStatus) {
+function errorPose(t: number): PopiPose {
+  return {
+    position: [Math.sin(t * 38) * 0.06, BASE_Y, 0],
+    rotation: [0, 0, Math.sin(t * 30) * 0.12],
+    facing: 0,
+    headRotation: [
+      -0.1,
+      Math.sin(t * 20) * 0.12,
+      Math.sin(t * 30) * 0.15,
+    ],
+    armLeft: -0.6 + Math.sin(t * 25) * 0.2,
+    armRight: 0.6 - Math.sin(t * 25) * 0.2,
+    bodyScale: 1 + Math.sin(t * 12) * 0.03,
+    eyeOpen: 1.4,
+  };
+}
+
+/**
+ * Gateway reachable link is down but the browser still observes state: a
+ * patient, restrained "waiting" idle that looks clearly different from doing
+ * work. No screen-facing and no arm motion, so it cannot read as progress.
+ */
+function gatewayDownPose(t: number): PopiPose {
+  return {
+    position: [0, BASE_Y + Math.sin(t * 1.1) * 0.02, 0],
+    rotation: [0, Math.sin(t * 0.5) * 0.1, Math.sin(t * 1.1) * 0.03],
+    facing: 0,
+    headRotation: [-0.05, Math.sin(t * 0.5) * 0.35, 0.08],
+    armLeft: 0.08 + Math.sin(t * 1.1) * 0.04,
+    armRight: -0.08 - Math.sin(t * 1.1) * 0.04,
+    bodyScale: 1 + Math.sin(t * 1.1) * 0.015,
+    eyeOpen: blink(t, 4.6),
+  };
+}
+
+/**
+ * No browser observation at all: fully powered-down, no fabricated activity.
+ */
+function sseDownPose(): PopiPose {
+  return {
+    position: [0, BASE_Y, 0],
+    rotation: [0, 0, 0],
+    facing: 0,
+    headRotation: [0.4, 0, 0],
+    armLeft: 0,
+    armRight: 0,
+    bodyScale: 1,
+    eyeOpen: 0.05,
+  };
+}
+
+/**
+ * Reduced-motion resting pose: a single stable frame per presence/status with
+ * eyes open, so no oscillation reaches the render loop.
+ */
+export function getPopiRestPose(
+  status: AgentStatus,
+  presence: PopiPresence = "online",
+): PopiPose {
+  if (presence === "sse-down") {
+    return sseDownPose();
+  }
+
+  const facing =
+    presence === "online" && isFacingScreen(status)
+      ? FACING_SCREEN
+      : 0;
+
+  const headRotation: [number, number, number] =
+    presence === "auth-error"
+      ? [-0.05, 0, 0]
+      : presence === "online" && isFacingScreen(status)
+        ? [0.14, 0, 0]
+        : [0.02, 0, 0];
+
+  return {
+    position: [0, BASE_Y, 0],
+    rotation: [0, 0, 0],
+    facing,
+    headRotation,
+    armLeft: 0,
+    armRight: 0,
+    bodyScale: 1,
+    eyeOpen: 1,
+  };
+}
+
+export function getPopiPose(
+  status: AgentStatus,
+  t: number,
+  options: PopiPoseOptions = {},
+): PopiPose {
+  const presence = options.presence ?? "online";
+
+  if (options.reducedMotion) {
+    return getPopiRestPose(status, presence);
+  }
+
+  switch (presence) {
+    case "sse-down":
+      return sseDownPose();
+
+    case "gateway-down":
+      return gatewayDownPose(t);
+
+    case "auth-error":
+      return errorPose(t);
+
+    default:
+      return statusPose(status, t);
+  }
+}
+
+export function getBodyColor(
+  status: AgentStatus,
+  presence: PopiPresence = "online",
+) {
+  if (presence === "sse-down") {
+    return "#64748b";
+  }
+
+  if (presence === "gateway-down") {
+    return "#94a3b8";
+  }
+
+  if (presence === "auth-error") {
+    return "#ef4444";
+  }
+
   switch (status) {
     case "ERROR":
       return "#ef4444";
@@ -152,7 +314,22 @@ export function getBodyColor(status: AgentStatus) {
   }
 }
 
-export function getScreenColor(status: AgentStatus) {
+export function getScreenColor(
+  status: AgentStatus,
+  presence: PopiPresence = "online",
+) {
+  if (presence === "sse-down") {
+    return "#1e293b";
+  }
+
+  if (presence === "gateway-down") {
+    return "#475569";
+  }
+
+  if (presence === "auth-error") {
+    return "#ef4444";
+  }
+
   switch (status) {
     case "ERROR":
       return "#ef4444";
@@ -171,7 +348,20 @@ export function getScreenColor(status: AgentStatus) {
 export function getScreenGlow(
   status: AgentStatus,
   t: number,
+  presence: PopiPresence = "online",
 ) {
+  if (presence === "sse-down") {
+    return 0.02;
+  }
+
+  if (presence === "gateway-down") {
+    return 0.12 + Math.sin(t * 0.6) * 0.03;
+  }
+
+  if (presence === "auth-error") {
+    return Math.sin(t * 12) > 0 ? 1.8 : 0.15;
+  }
+
   switch (status) {
     case "ERROR":
       return Math.sin(t * 12) > 0 ? 1.8 : 0.15;
@@ -193,7 +383,20 @@ export function getScreenGlow(
 export function getPointLightIntensity(
   status: AgentStatus,
   t: number,
+  presence: PopiPresence = "online",
 ) {
+  if (presence === "sse-down") {
+    return 0;
+  }
+
+  if (presence === "gateway-down") {
+    return 0.4 + Math.sin(t * 0.8) * 0.1;
+  }
+
+  if (presence === "auth-error") {
+    return Math.sin(t * 12) > 0 ? 8 : 1;
+  }
+
   switch (status) {
     case "ERROR":
       return Math.sin(t * 12) > 0 ? 8 : 1;
@@ -214,7 +417,20 @@ export function getPointLightIntensity(
 
 export function getPointLightColor(
   status: AgentStatus,
+  presence: PopiPresence = "online",
 ) {
+  if (presence === "sse-down") {
+    return "#334155";
+  }
+
+  if (presence === "gateway-down") {
+    return "#64748b";
+  }
+
+  if (presence === "auth-error") {
+    return "#ef4444";
+  }
+
   switch (status) {
     case "ERROR":
       return "#ef4444";

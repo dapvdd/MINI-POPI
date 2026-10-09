@@ -4,7 +4,11 @@ import { useFrame } from "@react-three/fiber";
 import { memo, useRef } from "react";
 import * as THREE from "three";
 import type { AgentStatus } from "@/lib/hermes/types";
-import { getScreenColor, getScreenGlow } from "@/lib/popi";
+import {
+  getScreenColor,
+  getScreenGlow,
+  type PopiPresence,
+} from "@/lib/popi";
 import { OFFICE_PALETTE as C, type WorkstationSpec } from "@/lib/office";
 import { PopiAgent } from "./PopiAgent";
 
@@ -143,7 +147,13 @@ function TerminalLines({ active }: { active: boolean }) {
   );
 }
 
-function Monitor({ status }: { status: AgentStatus }) {
+function Monitor({
+  status,
+  presence,
+}: {
+  status: AgentStatus;
+  presence: PopiPresence;
+}) {
   const screen = useRef<THREE.MeshStandardMaterial>(null);
 
   useFrame((state) => {
@@ -152,6 +162,7 @@ function Monitor({ status }: { status: AgentStatus }) {
     screen.current.emissiveIntensity = getScreenGlow(
       status,
       state.clock.elapsedTime,
+      presence,
     );
   });
 
@@ -171,13 +182,15 @@ function Monitor({ status }: { status: AgentStatus }) {
         <meshStandardMaterial
           ref={screen}
           color={C.screenFrame}
-          emissive={getScreenColor(status)}
+          emissive={getScreenColor(status, presence)}
           emissiveIntensity={0.4}
           roughness={0.3}
         />
       </mesh>
 
-      <TerminalLines active={status === "TERMINAL"} />
+      <TerminalLines
+        active={presence === "online" && status === "TERMINAL"}
+      />
 
       <mesh position={[0, 0.35, 0]} castShadow>
         <boxGeometry args={[0.12, 0.62, 0.12]} />
@@ -192,7 +205,13 @@ function Monitor({ status }: { status: AgentStatus }) {
   );
 }
 
-function DeskProps({ status }: { status: AgentStatus }) {
+function DeskProps({
+  status,
+  presence,
+}: {
+  status: AgentStatus;
+  presence: PopiPresence;
+}) {
   return (
     <group>
       <mesh position={[0, 0.82, 0.24]} castShadow>
@@ -282,7 +301,7 @@ function DeskProps({ status }: { status: AgentStatus }) {
           <boxGeometry args={[0.06, 0.5, 0.02]} />
           <meshStandardMaterial
             color={C.screenFrame}
-            emissive={getScreenColor(status)}
+            emissive={getScreenColor(status, presence)}
             emissiveIntensity={1.2}
           />
         </mesh>
@@ -302,18 +321,26 @@ function DeskProps({ status }: { status: AgentStatus }) {
 export const Workstation = memo(function Workstation({
   spec,
   status,
+  presence = "online",
+  reducedMotion = false,
 }: {
   spec: WorkstationSpec;
   status: AgentStatus;
+  presence?: PopiPresence;
+  reducedMotion?: boolean;
 }) {
   return (
     <group position={spec.position} rotation={[0, spec.rotationY, 0]}>
       <Desk />
       <Chair />
-      <Monitor status={status} />
-      <DeskProps status={status} />
+      <Monitor status={status} presence={presence} />
+      <DeskProps status={status} presence={presence} />
       <group position={AGENT_OFFSET}>
-        <PopiAgent status={status} />
+        <PopiAgent
+          status={status}
+          presence={presence}
+          reducedMotion={reducedMotion}
+        />
       </group>
     </group>
   );

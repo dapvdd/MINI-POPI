@@ -3,13 +3,11 @@
 import { useFrame } from "@react-three/fiber";
 import { memo, useEffect, useRef } from "react";
 import * as THREE from "three";
-import {
-  isTerminalWorkerStatus,
-  type WorkerState,
-} from "@/lib/hermes/workers";
+import type { WorkerState } from "@/lib/hermes/workers";
 import {
   formatWorkerGoal,
   getWorkerStatusVisual,
+  type WorkerMotion,
 } from "@/lib/worker-visuals";
 import { createWorkerLabelTexture } from "./label-texture";
 import { OFFICE_PALETTE as C, type WorkstationSpec } from "@/lib/office";
@@ -47,7 +45,13 @@ function WorkerDesk() {
   );
 }
 
-function WorkerMonitor({ color }: { color: string }) {
+function WorkerMonitor({
+  color,
+  active,
+}: {
+  color: string;
+  active: boolean;
+}) {
   return (
     <group position={[0, 0.7, -0.42]}>
       <mesh position={[0, 0.03, 0]} castShadow receiveShadow>
@@ -71,7 +75,7 @@ function WorkerMonitor({ color }: { color: string }) {
         <meshStandardMaterial
           color={C.screenFrame}
           emissive={color}
-          emissiveIntensity={0.55}
+          emissiveIntensity={active ? 0.55 : 0.18}
           roughness={0.3}
         />
       </mesh>
@@ -100,12 +104,12 @@ function WorkerStool() {
 
 function WorkerBot({
   color,
-  active,
-  terminal,
+  motion,
+  reducedMotion,
 }: {
   color: string;
-  active: boolean;
-  terminal: boolean;
+  motion: WorkerMotion;
+  reducedMotion: boolean;
 }) {
   const root = useRef<THREE.Group>(null);
   const antenna = useRef<THREE.MeshStandardMaterial>(null);
@@ -121,42 +125,68 @@ function WorkerBot({
 
     const t = state.clock.elapsedTime;
 
-    if (active) {
-      group.position.y = 0.05 + Math.abs(Math.sin(t * 3.2)) * 0.05;
-      group.rotation.z = Math.sin(t * 2.4) * 0.03;
+    // Motionless defaults; every mode opts into the motion it truthfully owns.
+    let y = 0.05;
+    let roll = 0;
+    let left = 0;
+    let right = 0;
+    let glow = 0.45;
 
-      if (antenna.current) {
-        antenna.current.emissiveIntensity =
-          1.3 + Math.sin(t * 7) * 0.7;
+    if (!reducedMotion) {
+      switch (motion) {
+        case "working":
+          y = 0.05 + Math.abs(Math.sin(t * 3.2)) * 0.05;
+          roll = Math.sin(t * 2.4) * 0.03;
+          left = Math.sin(t * 8) * 0.4;
+          right = Math.sin(t * 8 + Math.PI) * 0.4;
+          glow = 1.3 + Math.sin(t * 7) * 0.7;
+          break;
+
+        case "tool":
+          y = 0.05 + Math.abs(Math.sin(t * 6)) * 0.04;
+          roll = Math.sin(t * 4.5) * 0.02;
+          left = Math.sin(t * 13) * 0.6;
+          right = Math.sin(t * 13 + Math.PI) * 0.6;
+          glow = 1.5 + Math.sin(t * 10) * 0.5;
+          break;
+
+        case "thinking":
+          y = 0.05 + Math.sin(t * 1.6) * 0.025;
+          roll = Math.sin(t * 1.1) * 0.02;
+          left = Math.sin(t * 1.6) * 0.06;
+          right = -Math.sin(t * 1.6) * 0.06;
+          glow = 0.7 + Math.sin(t * 2.4) * 0.3;
+          break;
+
+        case "dormant":
+          y = 0.05 + Math.sin(t * 1.1) * 0.015;
+          glow = 0.35 + Math.sin(t * 1.4) * 0.1;
+          break;
+
+        case "failed":
+          // Brief attention flicker only; never live-work motion.
+          glow = Math.sin(t * 12) > 0.6 ? 1.4 : 0.4;
+          break;
+
+        case "settled":
+        default:
+          break;
       }
-
-      if (armLeft.current) {
-        armLeft.current.rotation.x = Math.sin(t * 9) * 0.55;
-      }
-
-      if (armRight.current) {
-        armRight.current.rotation.x =
-          Math.sin(t * 9 + Math.PI) * 0.55;
-      }
-
-      return;
     }
 
-    group.position.y = terminal ? 0.05 : 0.05 + Math.sin(t * 1.6) * 0.02;
-    group.rotation.z = terminal ? 0 : Math.sin(t) * 0.02;
+    group.position.y = y;
+    group.rotation.z = roll;
 
     if (antenna.current) {
-      antenna.current.emissiveIntensity = terminal
-        ? 0.5
-        : 0.6 + Math.sin(t * 2) * 0.15;
+      antenna.current.emissiveIntensity = glow;
     }
 
     if (armLeft.current) {
-      armLeft.current.rotation.x = 0;
+      armLeft.current.rotation.x = left;
     }
 
     if (armRight.current) {
-      armRight.current.rotation.x = 0;
+      armRight.current.rotation.x = right;
     }
   });
 
@@ -277,23 +307,24 @@ function WorkerLabel({ worker, color }: { worker: WorkerState; color: string }) 
 export const WorkerStation = memo(function WorkerStation({
   spec,
   worker,
+  reducedMotion = false,
 }: {
   spec: WorkstationSpec;
   worker: WorkerState;
+  reducedMotion?: boolean;
 }) {
   const visual = getWorkerStatusVisual(worker.status);
-  const terminal = isTerminalWorkerStatus(worker.status);
 
   return (
     <group position={spec.position} rotation={[0, spec.rotationY, 0]}>
       <WorkerDesk />
-      <WorkerMonitor color={visual.color} />
+      <WorkerMonitor color={visual.color} active={visual.active} />
       <WorkerStool />
       <group position={BOT_OFFSET}>
         <WorkerBot
           color={visual.color}
-          active={visual.active}
-          terminal={terminal}
+          motion={visual.motion}
+          reducedMotion={reducedMotion}
         />
       </group>
       <WorkerLabel worker={worker} color={visual.color} />

@@ -4,9 +4,22 @@ import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import * as THREE from "three";
 import type { AgentStatus } from "@/lib/hermes/types";
-import { BASE_Y, getBodyColor, getPopiPose } from "@/lib/popi";
+import {
+  BASE_Y,
+  getBodyColor,
+  getPopiPose,
+  type PopiPresence,
+} from "@/lib/popi";
 
-export function PopiAgent({ status }: { status: AgentStatus }) {
+export function PopiAgent({
+  status,
+  presence = "online",
+  reducedMotion = false,
+}: {
+  status: AgentStatus;
+  presence?: PopiPresence;
+  reducedMotion?: boolean;
+}) {
   const root = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
   const head = useRef<THREE.Group>(null);
@@ -14,10 +27,13 @@ export function PopiAgent({ status }: { status: AgentStatus }) {
   const armRight = useRef<THREE.Group>(null);
   const eyeLeft = useRef<THREE.Mesh>(null);
   const eyeRight = useRef<THREE.Mesh>(null);
-  const bodyColor = getBodyColor(status);
+  const bodyColor = getBodyColor(status, presence);
 
   useFrame((state, delta) => {
-    const pose = getPopiPose(status, state.clock.elapsedTime);
+    const pose = getPopiPose(status, state.clock.elapsedTime, {
+      presence,
+      reducedMotion,
+    });
 
     if (!root.current || !body.current || !head.current) {
       return;

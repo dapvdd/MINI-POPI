@@ -10,11 +10,26 @@ import {
   type WorkerStatus,
 } from "./hermes/workers";
 
+/**
+ * Animation mode for one worker bot. Kept separate from `active` so the 3D
+ * layer can distinguish real lifecycle phases (queued vs thinking vs using a
+ * tool) and prove terminal workers never reuse a live-work animation.
+ */
+export type WorkerMotion =
+  | "dormant"
+  | "working"
+  | "thinking"
+  | "tool"
+  | "settled"
+  | "failed";
+
 export interface WorkerStatusVisual {
   /** Hex color shared by the Activity list and the 3D worker representation. */
   color: string;
   /** True only while the worker is doing live work that should animate. */
   active: boolean;
+  /** Coarse animation bucket for the 3D bot. */
+  motion: WorkerMotion;
   /** Compact human label for the status. */
   label: string;
 }
@@ -23,15 +38,60 @@ export const WORKER_STATUS_VISUALS: Record<
   WorkerStatus,
   WorkerStatusVisual
 > = {
-  queued: { color: "#71717a", active: false, label: "queued" },
-  running: { color: "#38bdf8", active: true, label: "running" },
-  thinking: { color: "#a78bfa", active: true, label: "thinking" },
-  using_tool: { color: "#fb923c", active: true, label: "using tool" },
-  completed: { color: "#34d399", active: false, label: "completed" },
-  failed: { color: "#ef4444", active: false, label: "failed" },
-  error: { color: "#ef4444", active: false, label: "error" },
-  timeout: { color: "#fbbf24", active: false, label: "timeout" },
-  interrupted: { color: "#a1a1aa", active: false, label: "interrupted" },
+  queued: {
+    color: "#71717a",
+    active: false,
+    motion: "dormant",
+    label: "queued",
+  },
+  running: {
+    color: "#38bdf8",
+    active: true,
+    motion: "working",
+    label: "running",
+  },
+  thinking: {
+    color: "#a78bfa",
+    active: true,
+    motion: "thinking",
+    label: "thinking",
+  },
+  using_tool: {
+    color: "#fb923c",
+    active: true,
+    motion: "tool",
+    label: "using tool",
+  },
+  completed: {
+    color: "#34d399",
+    active: false,
+    motion: "settled",
+    label: "completed",
+  },
+  failed: {
+    color: "#ef4444",
+    active: false,
+    motion: "failed",
+    label: "failed",
+  },
+  error: {
+    color: "#ef4444",
+    active: false,
+    motion: "failed",
+    label: "error",
+  },
+  timeout: {
+    color: "#fbbf24",
+    active: false,
+    motion: "failed",
+    label: "timeout",
+  },
+  interrupted: {
+    color: "#a1a1aa",
+    active: false,
+    motion: "settled",
+    label: "interrupted",
+  },
 };
 
 export function getWorkerStatusVisual(

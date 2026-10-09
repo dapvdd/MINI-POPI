@@ -2,11 +2,23 @@
 
 import { OrbitControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import * as THREE from "three";
 import type { AgentStatus } from "@/lib/hermes/types";
+import type { GatewayErrorKind } from "@/lib/hermes/connection";
 import type { WorkerState } from "@/lib/hermes/workers";
-import { getPointLightColor, getPointLightIntensity } from "@/lib/popi";
+import {
+  getPointLightColor,
+  getPointLightIntensity,
+  resolvePopiPresence,
+  type PopiPresence,
+} from "@/lib/popi";
 import {
   assignWorkerWorkstations,
   OFFICE_PALETTE as C,
@@ -30,7 +42,13 @@ type OrbitLike = {
   update: () => void;
 };
 
-function StatusLight({ status }: { status: AgentStatus }) {
+function StatusLight({
+  status,
+  presence,
+}: {
+  status: AgentStatus;
+  presence: PopiPresence;
+}) {
   const light = useRef<THREE.PointLight>(null);
 
   useFrame((state) => {
@@ -39,6 +57,7 @@ function StatusLight({ status }: { status: AgentStatus }) {
     light.current.intensity = getPointLightIntensity(
       status,
       state.clock.elapsedTime,
+      presence,
     );
   });
 
@@ -49,9 +68,34 @@ function StatusLight({ status }: { status: AgentStatus }) {
       intensity={1}
       distance={16}
       decay={2}
-      color={getPointLightColor(status)}
+      color={getPointLightColor(status, presence)}
     />
   );
+}
+
+/**
+ * One media-query subscription for the whole scene. When the user prefers
+ * reduced motion, pose helpers collapse to a single stable frame so no
+ * continuous oscillation reaches the render loop.
+ */
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) {
+      return;
+    }
+
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(query.matches);
+
+    update();
+    query.addEventListener("change", update);
+
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return reduced;
 }
 
 /**
@@ -149,11 +193,28 @@ function CameraRig({ focusDistance }: { focusDistance: number }) {
 export function OfficeScene({
   status,
   workers,
+  sseConnected,
+  gatewayConnected,
+  connectionError,
 }: {
   status: AgentStatus;
   workers: WorkerState[];
+  sseConnected: boolean;
+  gatewayConnected: boolean;
+  connectionError: GatewayErrorKind | null;
 }) {
   const now = useRetentionNow();
+  const reducedMotion = usePrefersReducedMotion();
+
+  const presence = useMemo(
+    () =>
+      resolvePopiPresence({
+        sseConnected,
+        gatewayConnected,
+        connectionError,
+      }),
+    [sseConnected, gatewayConnected, connectionError],
+  );
 
   const visibleWorkers = useMemo(
     () => selectRenderableWorkers(workers, now, WORKER_TERMINAL_TTL_MS),
@@ -201,16 +262,26 @@ export function OfficeScene({
         shadow-camera-bottom={-16}
         shadow-bias={-0.0005}
       />
-      <StatusLight status={status} />
+      <StatusLight status={status} presence={presence} />
 
       <OfficeRoom />
-      <Workstation spec={POPI_WORKSTATION} status={status} />
+      <Workstation
+        spec={POPI_WORKSTATION}
+        status={status}
+        presence={presence}
+        reducedMotion={reducedMotion}
+      />
 
       {layout.assignments.map(({ workerId, spec }) => {
         const worker = workersById.get(workerId);
 
         return worker ? (
-          <WorkerStation key={workerId} spec={spec} worker={worker} />
+          <WorkerStation
+            key={workerId}
+            spec={spec}
+            worker={worker}
+            reducedMotion={reducedMotion}
+          />
         ) : null;
       })}
 

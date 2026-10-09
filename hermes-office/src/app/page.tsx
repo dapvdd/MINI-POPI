@@ -472,7 +472,13 @@ export default function Home() {
               dpr={[1, 2]}
               camera={{ position: [5, 4, 6], fov: 50 }}
             >
-              <OfficeScene status={status} workers={workers} />
+              <OfficeScene
+                status={status}
+                workers={workers}
+                sseConnected={connected}
+                gatewayConnected={gatewayConnected}
+                connectionError={connectionError}
+              />
             </Canvas>
 
             <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">

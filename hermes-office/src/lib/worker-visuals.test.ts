@@ -87,6 +87,40 @@ describe("worker status visuals", () => {
       expect(visual.label.length).toBeGreaterThan(0);
     }
   });
+
+  it("never maps a terminal worker to a live-work motion", () => {
+    for (const status of [
+      "completed",
+      "failed",
+      "error",
+      "timeout",
+      "interrupted",
+    ] as WorkerStatus[]) {
+      const visual = getWorkerStatusVisual(status);
+
+      expect(visual.active).toBe(false);
+      expect(["settled", "failed"]).toContain(visual.motion);
+    }
+  });
+
+  it("gives each live phase a distinct motion", () => {
+    expect(getWorkerStatusVisual("queued").motion).toBe("dormant");
+    expect(getWorkerStatusVisual("running").motion).toBe("working");
+    expect(getWorkerStatusVisual("thinking").motion).toBe("thinking");
+    expect(getWorkerStatusVisual("using_tool").motion).toBe("tool");
+  });
+
+  it("tracks lifecycle transitions in motion", () => {
+    expect(getWorkerStatusVisual(runningWorker().status).motion).toBe(
+      "working",
+    );
+    expect(getWorkerStatusVisual(completedWorker().status).motion).toBe(
+      "settled",
+    );
+    expect(
+      getWorkerStatusVisual(completedWorker("failed").status).motion,
+    ).toBe("failed");
+  });
 });
 
 describe("formatWorkerGoal", () => {
