@@ -1,5 +1,11 @@
 import WebSocket from "ws";
 import type { AgentState } from "./types";
+import {
+  AUTH_RECOVERY_HINT,
+  classifyGatewayError,
+  decideReconnect,
+  type GatewayErrorKind,
+} from "./connection";
 import { mapEventToState } from "./state-adapter";
 
 interface HermesMessage {
@@ -10,16 +16,20 @@ interface HermesMessage {
   };
 }
 
-const RECONNECT_BASE_DELAY = 1000;
-const RECONNECT_MAX_DELAY = 15000;
-
 export class HermesClient {
   private ws: WebSocket | null = null;
   private wsReady: Promise<void> | null = null;
   private requestId = 1;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private reconnectDelay = RECONNECT_BASE_DELAY;
+  private reconnectAttempt = 0;
   private closedByUs = false;
+  /**
+   * Set after a 401/403. The session token is read from the environment once at
+   * process boot, so no in-process retry can succeed; we stop the loop and
+   * surface a recovery hint instead of hammering the Gateway.
+   */
+  private authBlocked = false;
+  private lastErrorKind: GatewayErrorKind | null = null;
 
   private state: AgentState = {
     status: "OFFLINE",
@@ -32,6 +42,7 @@ export class HermesClient {
     turnSeq: 0,
     lastResponseStatus: null,
     gatewayConnected: false,
+    connectionError: null,
     workers: {},
   };
 
@@ -43,6 +54,10 @@ export class HermesClient {
   connect() {
     if (this.wsReady) {
       return this.wsReady;
+    }
+
+    if (this.authBlocked) {
+      return Promise.reject(new Error(AUTH_RECOVERY_HINT));
     }
 
     if (this.reconnectTimer) {
@@ -59,7 +74,10 @@ export class HermesClient {
       this.ws = new WebSocket(url);
 
       this.ws.on("open", () => {
-        this.reconnectDelay = RECONNECT_BASE_DELAY;
+        this.reconnectAttempt = 0;
+        this.authBlocked = false;
+        this.lastErrorKind = null;
+
         console.log("🔌 Connected to Hermes Gateway");
 
         const stale =
@@ -75,6 +93,7 @@ export class HermesClient {
         if (
           nextStatus !== this.state.status ||
           nextError !== this.state.lastError ||
+          this.state.connectionError !== null ||
           !this.state.gatewayConnected
         ) {
           this.updateState({
@@ -82,6 +101,7 @@ export class HermesClient {
             status: nextStatus,
             lastError: nextError,
             gatewayConnected: true,
+            connectionError: null,
           });
         }
 
@@ -109,22 +129,41 @@ export class HermesClient {
 
         console.log("🔌 Hermes Gateway disconnected");
 
-        if (!this.closedByUs) {
-          this.scheduleReconnect();
+        if (this.closedByUs) {
+          return;
+        }
+
+        const decision = decideReconnect(
+          this.lastErrorKind ?? "unknown",
+          this.reconnectAttempt + 1,
+        );
+
+        if (decision.retry) {
+          this.reconnectAttempt += 1;
+          this.scheduleReconnect(decision.delayMs);
         }
       });
 
       this.ws.on("error", (error) => {
-        console.error("❌ Hermes WebSocket error:", error.message);
+        const classified = classifyGatewayError(error.message);
+
+        console.error("❌ Hermes WebSocket error:", classified.message);
+
+        if (classified.kind === "auth") {
+          this.authBlocked = true;
+        }
+
+        this.lastErrorKind = classified.kind;
 
         this.updateState({
           ...this.state,
           status: "ERROR",
-          lastError: error.message,
+          lastError: classified.message,
           gatewayConnected: false,
+          connectionError: classified.kind,
         });
 
-        reject(error);
+        reject(new Error(classified.message));
       });
     });
 
@@ -144,22 +183,15 @@ export class HermesClient {
     this.ws = null;
   }
 
-  private scheduleReconnect() {
+  private scheduleReconnect(delayMs: number) {
     if (this.reconnectTimer) {
       return;
     }
 
-    const delay = this.reconnectDelay;
-
-    this.reconnectDelay = Math.min(
-      this.reconnectDelay * 2,
-      RECONNECT_MAX_DELAY,
-    );
-
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect().catch(() => {});
-    }, delay);
+    }, delayMs);
   }
 
   private updateState(next: AgentState) {

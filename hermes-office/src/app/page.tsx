@@ -3,6 +3,7 @@
 import { Canvas } from "@react-three/fiber";
 import { useEffect, useReducer, useRef, useState } from "react";
 import type { AgentStatus } from "@/lib/hermes/types";
+import type { GatewayErrorKind } from "@/lib/hermes/connection";
 import {
   conversationReducer,
   initialConversationState,
@@ -30,6 +31,7 @@ type SseState = {
   turnSeq?: number;
   lastResponseStatus?: string | null;
   gatewayConnected?: boolean;
+  connectionError?: GatewayErrorKind | null;
   workers?: Record<string, WorkerState>;
 };
 
@@ -122,6 +124,8 @@ const PANEL_HEADER =
 export default function Home() {
   const [connected, setConnected] = useState(false);
   const [gatewayConnected, setGatewayConnected] = useState(false);
+  const [connectionError, setConnectionError] =
+    useState<GatewayErrorKind | null>(null);
   const [status, setStatus] = useState<AgentStatus>("OFFLINE");
   const [tool, setTool] = useState("-");
   const [command, setCommand] = useState("-");
@@ -176,6 +180,7 @@ export default function Home() {
       const nextTurnSeq = state.turnSeq ?? 0;
       const nextResponseStatus = state.lastResponseStatus ?? null;
       const nextGateway = state.gatewayConnected ?? false;
+      const nextConnectionError = state.connectionError ?? null;
 
       /*
        * Conversation sync: the first frame fixes the baseline turnSeq so a
@@ -223,6 +228,9 @@ export default function Home() {
       );
       setGatewayConnected((prev) =>
         prev === nextGateway ? prev : nextGateway,
+      );
+      setConnectionError((prev) =>
+        prev === nextConnectionError ? prev : nextConnectionError,
       );
 
       const nextWorkers = workersToArray(state.workers ?? {});
@@ -510,6 +518,10 @@ export default function Home() {
                 <span className="text-[10px] uppercase tracking-widest text-red-400">
                   error
                 </span>
+              ) : connectionError === "auth" ? (
+                <span className="text-[10px] uppercase tracking-widest text-red-400">
+                  token rejected
+                </span>
               ) : connected && !gatewayConnected ? (
                 <span className="text-[10px] uppercase tracking-widest text-amber-400">
                   gateway offline
@@ -525,6 +537,14 @@ export default function Home() {
               {runError ? (
                 <div className="whitespace-pre-wrap break-words rounded-lg border border-red-900/60 bg-red-950/40 px-3 py-2 text-xs text-red-300">
                   {runError}
+                </div>
+              ) : null}
+
+              {connectionError === "auth" ? (
+                <div className="whitespace-pre-wrap break-words rounded-lg border border-red-900/60 bg-red-950/40 px-3 py-2 text-xs text-red-300">
+                  Gateway rejected the session token. Refresh
+                  HERMES_SESSION_TOKEN in .env.local from the Gateway root
+                  HTML, then restart the dev server.
                 </div>
               ) : null}
 

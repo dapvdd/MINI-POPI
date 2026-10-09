@@ -1,3 +1,4 @@
+import type { GatewayErrorKind } from "./connection";
 import type { WorkersState } from "./workers";
 
 export type AgentStatus =
@@ -34,6 +35,12 @@ export interface AgentState {
    * Next.js SSE link, which the UI tracks separately.
    */
   gatewayConnected: boolean;
+  /**
+   * Kind of the most recent Gateway link error: `"auth"` when the session token
+   * was rejected (permanent until the process restarts), `"transient"` for a
+   * network drop that will be retried, `null` when the link is healthy.
+   */
+  connectionError: GatewayErrorKind | null;
   /**
    * Delegated subagents, keyed by stable identity. UI-facing contract for the
    * future Three.js office; presentation/animation stays out of this model.

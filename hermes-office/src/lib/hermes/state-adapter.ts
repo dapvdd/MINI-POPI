@@ -141,11 +141,16 @@ export function mapEventToState(
   }
 
   switch (event.type) {
-    case "gateway.ready":
-      return current.status === "OFFLINE" ||
-        current.status === "ERROR"
-        ? { ...current, status: "IDLE", lastError: null }
-        : current;
+    case "gateway.ready": {
+      const recovered =
+        current.status === "OFFLINE" || current.status === "ERROR"
+          ? { ...current, status: "IDLE" as const, lastError: null }
+          : current;
+
+      return recovered.connectionError === null
+        ? recovered
+        : { ...recovered, connectionError: null };
+    }
 
     case "message.start":
       return {

@@ -13,6 +13,7 @@ const initialState: AgentState = {
   turnSeq: 0,
   lastResponseStatus: null,
   gatewayConnected: true,
+  connectionError: null,
   workers: {},
 };
 
@@ -203,6 +204,22 @@ describe("mapEventToState", () => {
     const busy = mapEventToState(offline, { type: "reasoning.delta" });
 
     expect(mapEventToState(busy, { type: "gateway.ready" })).toBe(busy);
+  });
+
+  it("clears a prior connection error on gateway.ready", () => {
+    const rejected = {
+      ...initialState,
+      status: "OFFLINE" as const,
+      gatewayConnected: false,
+      connectionError: "auth" as const,
+      lastError: "rejected",
+    };
+
+    const recovered = mapEventToState(rejected, { type: "gateway.ready" });
+
+    expect(recovered.connectionError).toBeNull();
+    expect(recovered.status).toBe("IDLE");
+    expect(recovered.lastError).toBeNull();
   });
 
   it("increments turnSeq once per completed turn", () => {
