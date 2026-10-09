@@ -5,6 +5,8 @@ export const BASE_Y = 0.05;
 
 export const FACING_SCREEN = Math.PI;
 
+const TWO_PI = Math.PI * 2;
+
 const SCREEN_STATUSES: AgentStatus[] = [
   "USING_TOOL",
   "WORKING",
@@ -55,6 +57,12 @@ export function resolvePopiPresence({
   return "online";
 }
 
+/**
+ * Target pose for Popi. `armLeft`/`armRight` are shoulder pitch (rotation.x);
+ * `armLeftZ`/`armRightZ` are shoulder roll (rotation.z), which is what lifts a
+ * hand toward the chest for the thinking gesture. The rig is the existing
+ * single-segment arm: no elbow or finger joint is assumed anywhere.
+ */
 export interface PopiPose {
   position: [number, number, number];
   rotation: [number, number, number];
@@ -62,6 +70,8 @@ export interface PopiPose {
   headRotation: [number, number, number];
   armLeft: number;
   armRight: number;
+  armLeftZ: number;
+  armRightZ: number;
   bodyScale: number;
   eyeOpen: number;
 }
@@ -71,104 +81,250 @@ export interface PopiPoseOptions {
   reducedMotion?: boolean;
 }
 
-function blink(t: number, period = 3.7) {
-  const phase = t % period;
+/* =========================================================
+   MOTION PRIMITIVES
+   Deterministic, allocation-free, and non-repeating enough to
+   avoid the "obvious loop" look while staying unit-testable.
+========================================================= */
 
-  return phase < 0.12 ? 0.12 : 1;
+function clamp01(value: number): number {
+  return value < 0 ? 0 : value > 1 ? 1 : value;
+}
+
+function smoothstep(fraction: number): number {
+  const x = clamp01(fraction);
+
+  return x * x * (3 - 2 * x);
+}
+
+/** Deterministic pseudo-random value in [0, 1) from an integer seed. */
+function hash01(seed: number): number {
+  const value = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+
+  return value - Math.floor(value);
+}
+
+/**
+ * Smooth value noise in [0, 1] that only changes once per `period` seconds.
+ * Used for deliberate gaze/posture shifts and rhythm variation without touching
+ * per-frame randomness or allocating.
+ */
+export function smoothNoise(
+  t: number,
+  period: number,
+  offset = 0,
+): number {
+  const x = (t + offset) / period;
+  const index = Math.floor(x);
+  const fraction = x - index;
+  const from = hash01(index);
+  const to = hash01(index + 1);
+
+  return from + (to - from) * smoothstep(fraction);
+}
+
+/**
+ * Smooth 0 -> 1 -> 0 burst once per `period`, silent for the rest. This is what
+ * gives THINKING short gestures and real pauses instead of constant motion.
+ */
+export function pulse(
+  t: number,
+  period: number,
+  activeFraction: number,
+  offset = 0,
+): number {
+  const wrapped = (((t + offset) % period) + period) % period;
+  const fraction = wrapped / period;
+
+  if (fraction >= activeFraction) {
+    return 0;
+  }
+
+  return Math.sin(Math.PI * (fraction / activeFraction));
+}
+
+/** Blink whose inter-blink timing drifts, so it never looks metronomic. */
+function blink(t: number, period = 3.9): number {
+  const phase = (t + smoothNoise(t, 17, 3) * 0.6) % period;
+
+  if (phase < 0.1) {
+    return 0.1;
+  }
+
+  if (phase < 0.2) {
+    return 0.1 + ((phase - 0.1) / 0.1) * 0.9;
+  }
+
+  return 1;
+}
+
+function makePose(partial: Partial<PopiPose>): PopiPose {
+  return {
+    position: [0, BASE_Y, 0],
+    rotation: [0, 0, 0],
+    facing: 0,
+    headRotation: [0, 0, 0],
+    armLeft: 0,
+    armRight: 0,
+    armLeftZ: 0,
+    armRightZ: 0,
+    bodyScale: 1,
+    eyeOpen: 1,
+    ...partial,
+  };
 }
 
 export function isFacingScreen(status: AgentStatus) {
   return SCREEN_STATUSES.includes(status);
 }
 
-function statusPose(status: AgentStatus, t: number): PopiPose {
-  const eye = blink(t);
+/* =========================================================
+   ONLINE STATUS POSES
+========================================================= */
 
-  switch (status) {
-    case "THINKING":
-      return {
-        position: [0, BASE_Y + Math.sin(t * 1.6) * 0.03, 0],
-        rotation: [0, 0, Math.sin(t * 1.3) * 0.05],
-        facing: 0,
-        headRotation: [
-          -0.18 + Math.sin(t * 1.1) * 0.08,
-          Math.sin(t * 0.8) * 0.55,
-          0.14,
-        ],
-        armLeft: 0.15 + Math.sin(t * 1.6) * 0.1,
-        armRight: -0.15 - Math.sin(t * 1.6) * 0.1,
-        bodyScale: 1 + Math.sin(t * 1.6) * 0.03,
-        eyeOpen: eye,
-      };
+/**
+ * IDLE: calm and alive, not continuously animated. A slow breath plus a low
+ * sway, with infrequent posture shifts (pulses) and a drifting gaze. Amplitudes
+ * stay tiny so the office stays readable.
+ */
+function idlePose(t: number): PopiPose {
+  const breathe = Math.sin(t * 0.85);
+  const sway = Math.sin(t * 0.31 + 0.5);
+  const shift =
+    pulse(t, 13.0, 0.35, 2.0) - pulse(t, 17.5, 0.3, 7.5);
+  const turn = Math.max(0, shift);
+  const gaze = (smoothNoise(t, 6.5, 1.3) - 0.5) * 0.5;
 
-    case "USING_TOOL":
-      return {
-        position: [0, BASE_Y, 0],
-        rotation: [0.06, 0, 0],
-        facing: FACING_SCREEN,
-        headRotation: [0.18, Math.sin(t * 2) * 0.12, 0],
-        armLeft: Math.sin(t * 13) * 0.45,
-        armRight: Math.sin(t * 13 + Math.PI) * 0.45,
-        bodyScale: 1 + Math.sin(t * 6) * 0.01,
-        eyeOpen: eye,
-      };
+  return makePose({
+    position: [
+      0.02 * sway + 0.03 * shift,
+      BASE_Y + 0.009 * breathe,
+      0,
+    ],
+    rotation: [0, 0, 0.014 * sway + 0.02 * shift],
+    facing: 0.3 * turn,
+    headRotation: [
+      0.02 + 0.03 * breathe,
+      gaze * (0.6 + 0.4 * Math.abs(shift)) + 0.25 * turn,
+      0,
+    ],
+    armLeft: 0.02 * sway + 0.05 * shift,
+    armRight: -0.02 * sway - 0.05 * shift,
+    armLeftZ: 0.02 * sway,
+    armRightZ: -0.02 * sway,
+    bodyScale: 1 + 0.01 * breathe,
+    eyeOpen: blink(t),
+  });
+}
 
-    case "WORKING":
-      return {
-        position: [
-          0,
-          BASE_Y + Math.abs(Math.sin(t * 5)) * 0.09,
-          0,
-        ],
-        rotation: [0.05, 0, Math.sin(t * 5) * 0.06],
-        facing: FACING_SCREEN,
-        headRotation: [
-          0.12 + Math.sin(t * 5) * 0.06,
-          Math.sin(t * 2.5) * 0.2,
-          0,
-        ],
-        armLeft: Math.sin(t * 9) * 0.6,
-        armRight: Math.sin(t * 9 + Math.PI) * 0.6,
-        bodyScale: 1 + Math.sin(t * 5) * 0.04,
-        eyeOpen: eye,
-      };
+/**
+ * THINKING: an unmistakable pondering pose. The head tilts and pitches down,
+ * the gaze holds then shifts, one hand rises forward toward the chest in short
+ * bursts with real pauses between them, and the body occasionally turns toward
+ * the monitor as if reviewing. The arm stays on its own side of the torso (the
+ * single-segment rig cannot reach the head without clipping), so this reads as
+ * a hand-to-chest ponder rather than literal chin contact.
+ */
+function thinkingPose(t: number): PopiPose {
+  const chin = pulse(t, 7.3, 0.4, 0.8);
+  const review = pulse(t, 11.7, 0.32, 4.2);
+  const nod = Math.sin(t * 0.9);
+  const gaze = (smoothNoise(t, 3.3, 2.0) - 0.5) * 0.9;
+  const tilt = 0.16 + 0.05 * Math.sin(t * 0.53);
 
-    case "TERMINAL":
-      return {
-        position: [0, BASE_Y + Math.sin(t * 3) * 0.01, 0],
-        rotation: [0.08, 0, 0],
-        facing: FACING_SCREEN,
-        headRotation: [0.22, Math.sin(t * 4) * 0.06, 0],
-        armLeft: Math.sin(t * 16) * 0.5,
-        armRight: Math.sin(t * 16 + Math.PI) * 0.5,
-        bodyScale: 1 + Math.sin(t * 4) * 0.01,
-        eyeOpen: eye,
-      };
+  return makePose({
+    position: [0, BASE_Y + 0.014 * Math.sin(t * 1.1), 0],
+    rotation: [0, 0, 0.03 * Math.sin(t * 0.9)],
+    facing: 1.7 * review,
+    headRotation: [
+      -0.12 - 0.1 * chin + 0.05 * review + 0.03 * nod,
+      gaze * (1 - 0.5 * chin) + 0.5 * review,
+      tilt + 0.04 * Math.sin(t * 0.67),
+    ],
+    armLeft: -0.2 - 0.6 * chin + 0.05 * Math.sin(t * 0.9),
+    armRight: -0.06 - 0.05 * Math.sin(t * 0.9),
+    armLeftZ: 0.08 + 0.12 * chin,
+    armRightZ: -0.08,
+    bodyScale: 1 + 0.014 * Math.sin(t * 1.0),
+    eyeOpen: blink(t),
+  });
+}
 
-    case "ERROR":
-      return errorPose(t);
+/**
+ * WORKING: purposeful screen-oriented posture with alternating typing arms. The
+ * two arms use different frequencies and noise-modulated amplitude so they
+ * never loop in perfect lockstep, and the hands stay forward/down over the desk
+ * rather than wobbling. No tool output or progress is implied.
+ */
+function workingPose(t: number): PopiPose {
+  const typeLeft =
+    Math.sin(t * 3.4) * (0.5 + 0.5 * smoothNoise(t, 2.1, 0.7));
+  const typeRight =
+    Math.sin(t * 3.4 + 2.1) *
+    (0.5 + 0.5 * smoothNoise(t, 2.6, 2.3));
+  const bob = Math.abs(Math.sin(t * 2.8));
+  const scan = (smoothNoise(t, 3.1, 1.2) - 0.5) * 0.3;
 
-    case "IDLE":
-    default:
-      return {
-        position: [0, BASE_Y + Math.sin(t * 1.3) * 0.02, 0],
-        rotation: [0, Math.sin(t * 0.4) * 0.08, 0],
-        facing: 0,
-        headRotation: [
-          Math.sin(t * 1.3) * 0.03,
-          Math.sin(t * 0.4) * 0.1,
-          0,
-        ],
-        armLeft: Math.sin(t * 1.3) * 0.05,
-        armRight: -Math.sin(t * 1.3) * 0.05,
-        bodyScale: 1 + Math.sin(t * 1.3) * 0.02,
-        eyeOpen: eye,
-      };
-  }
+  return makePose({
+    position: [0, BASE_Y + 0.045 * bob, 0],
+    rotation: [0.05, 0, 0.02 * Math.sin(t * 2.2)],
+    facing: FACING_SCREEN,
+    headRotation: [0.2 + 0.05 * Math.sin(t * 1.6), scan, 0],
+    armLeft: -0.95 + 0.2 * typeLeft,
+    armRight: -0.95 + 0.2 * typeRight,
+    armLeftZ: 0.32,
+    armRightZ: -0.32,
+    bodyScale: 1 + 0.02 * Math.sin(t * 2.8),
+    eyeOpen: blink(t),
+  });
+}
+
+/**
+ * USING_TOOL: focused, deliberate interaction. Fewer, slower presses than
+ * WORKING (pulse-driven reaches) with the gaze fixed on the screen, so it is
+ * visibly a different activity rather than more typing.
+ */
+function toolPose(t: number): PopiPose {
+  const pressLeft = pulse(t, 3.4, 0.5, 0.3);
+  const pressRight = pulse(t, 4.6, 0.45, 1.9);
+  const cursor = (smoothNoise(t, 2.4, 0.5) - 0.5) * 0.5;
+
+  return makePose({
+    position: [0, BASE_Y + 0.01 * Math.sin(t * 2.0), 0],
+    rotation: [0.06, 0, 0.02 * Math.sin(t * 3.0)],
+    facing: FACING_SCREEN,
+    headRotation: [0.24 + 0.05 * Math.sin(t * 1.5), cursor, 0.02],
+    armLeft: -0.7 - 0.35 * pressLeft,
+    armRight: -0.6 - 0.3 * pressRight,
+    armLeftZ: 0.28,
+    armRightZ: -0.28,
+    bodyScale: 1 + 0.012 * Math.sin(t * 4.0),
+    eyeOpen: blink(t),
+  });
+}
+
+/** TERMINAL: urgent, faster keystrokes than WORKING, still screen-facing. */
+function terminalPose(t: number): PopiPose {
+  return makePose({
+    position: [0, BASE_Y + Math.sin(t * 3) * 0.01, 0],
+    rotation: [0.08, 0, 0],
+    facing: FACING_SCREEN,
+    headRotation: [
+      0.22 + 0.04 * Math.sin(t * 5),
+      Math.sin(t * 4) * 0.06,
+      0,
+    ],
+    // Arms stay in the sagittal plane: a sideways offset would drag the
+    // hanging hand through the torso when the swing passes arm == 0.
+    armLeft: Math.sin(t * 16) * 0.5,
+    armRight: Math.sin(t * 16 + Math.PI) * 0.5,
+    bodyScale: 1 + Math.sin(t * 4) * 0.01,
+    eyeOpen: blink(t),
+  });
 }
 
 function errorPose(t: number): PopiPose {
-  return {
+  return makePose({
     position: [Math.sin(t * 38) * 0.06, BASE_Y, 0],
     rotation: [0, 0, Math.sin(t * 30) * 0.12],
     facing: 0,
@@ -181,8 +337,35 @@ function errorPose(t: number): PopiPose {
     armRight: 0.6 - Math.sin(t * 25) * 0.2,
     bodyScale: 1 + Math.sin(t * 12) * 0.03,
     eyeOpen: 1.4,
-  };
+  });
 }
+
+function statusPose(status: AgentStatus, t: number): PopiPose {
+  switch (status) {
+    case "THINKING":
+      return thinkingPose(t);
+
+    case "USING_TOOL":
+      return toolPose(t);
+
+    case "WORKING":
+      return workingPose(t);
+
+    case "TERMINAL":
+      return terminalPose(t);
+
+    case "ERROR":
+      return errorPose(t);
+
+    case "IDLE":
+    default:
+      return idlePose(t);
+  }
+}
+
+/* =========================================================
+   PRESENCE POSES
+========================================================= */
 
 /**
  * Gateway reachable link is down but the browser still observes state: a
@@ -190,7 +373,7 @@ function errorPose(t: number): PopiPose {
  * work. No screen-facing and no arm motion, so it cannot read as progress.
  */
 function gatewayDownPose(t: number): PopiPose {
-  return {
+  return makePose({
     position: [0, BASE_Y + Math.sin(t * 1.1) * 0.02, 0],
     rotation: [0, Math.sin(t * 0.5) * 0.1, Math.sin(t * 1.1) * 0.03],
     facing: 0,
@@ -199,23 +382,17 @@ function gatewayDownPose(t: number): PopiPose {
     armRight: -0.08 - Math.sin(t * 1.1) * 0.04,
     bodyScale: 1 + Math.sin(t * 1.1) * 0.015,
     eyeOpen: blink(t, 4.6),
-  };
+  });
 }
 
 /**
  * No browser observation at all: fully powered-down, no fabricated activity.
  */
 function sseDownPose(): PopiPose {
-  return {
-    position: [0, BASE_Y, 0],
-    rotation: [0, 0, 0],
-    facing: 0,
+  return makePose({
     headRotation: [0.4, 0, 0],
-    armLeft: 0,
-    armRight: 0,
-    bodyScale: 1,
     eyeOpen: 0.05,
-  };
+  });
 }
 
 /**
@@ -242,16 +419,7 @@ export function getPopiRestPose(
         ? [0.14, 0, 0]
         : [0.02, 0, 0];
 
-  return {
-    position: [0, BASE_Y, 0],
-    rotation: [0, 0, 0],
-    facing,
-    headRotation,
-    armLeft: 0,
-    armRight: 0,
-    bodyScale: 1,
-    eyeOpen: 1,
-  };
+  return makePose({ facing, headRotation });
 }
 
 export function getPopiPose(
@@ -279,6 +447,175 @@ export function getPopiPose(
       return statusPose(status, t);
   }
 }
+
+/* =========================================================
+   TRANSITIONS
+   Pose targets are blended per channel toward the previous frame's
+   value, so switching status/presence never snaps. Damping is
+   frame-rate independent (exponential in delta).
+========================================================= */
+
+export interface PoseDamping {
+  position: number;
+  rotation: number;
+  facing: number;
+  head: number;
+  arm: number;
+  bodyScale: number;
+}
+
+export const POSE_DAMPING: PoseDamping = {
+  position: 10,
+  rotation: 9,
+  facing: 5,
+  head: 12,
+  arm: 13,
+  bodyScale: 10,
+};
+
+export function dampScalar(
+  current: number,
+  target: number,
+  lambda: number,
+  delta: number,
+): number {
+  if (lambda <= 0 || delta <= 0) {
+    return current;
+  }
+
+  const amount = 1 - Math.exp(-lambda * delta);
+
+  return current + (target - current) * amount;
+}
+
+/** Damp along the shortest angular path, so PI turns never spin the long way. */
+export function dampAngle(
+  current: number,
+  target: number,
+  lambda: number,
+  delta: number,
+): number {
+  const wrapped = ((target - current) % TWO_PI + TWO_PI) % TWO_PI;
+  const shortest = wrapped > Math.PI ? wrapped - TWO_PI : wrapped;
+
+  return dampScalar(current, current + shortest, lambda, delta);
+}
+
+/**
+ * Blend `current` toward `target` in place and return the same object, so the
+ * render loop allocates nothing extra. `eyeOpen` passes straight through so
+ * blinks stay crisp instead of being smeared by damping.
+ */
+export function blendPose(
+  current: PopiPose,
+  target: PopiPose,
+  delta: number,
+  damping: PoseDamping = POSE_DAMPING,
+): PopiPose {
+  current.position[0] = dampScalar(
+    current.position[0],
+    target.position[0],
+    damping.position,
+    delta,
+  );
+  current.position[1] = dampScalar(
+    current.position[1],
+    target.position[1],
+    damping.position,
+    delta,
+  );
+  current.position[2] = dampScalar(
+    current.position[2],
+    target.position[2],
+    damping.position,
+    delta,
+  );
+
+  current.rotation[0] = dampScalar(
+    current.rotation[0],
+    target.rotation[0],
+    damping.rotation,
+    delta,
+  );
+  current.rotation[1] = dampScalar(
+    current.rotation[1],
+    target.rotation[1],
+    damping.rotation,
+    delta,
+  );
+  current.rotation[2] = dampScalar(
+    current.rotation[2],
+    target.rotation[2],
+    damping.rotation,
+    delta,
+  );
+
+  current.facing = dampAngle(
+    current.facing,
+    target.facing,
+    damping.facing,
+    delta,
+  );
+
+  current.headRotation[0] = dampScalar(
+    current.headRotation[0],
+    target.headRotation[0],
+    damping.head,
+    delta,
+  );
+  current.headRotation[1] = dampScalar(
+    current.headRotation[1],
+    target.headRotation[1],
+    damping.head,
+    delta,
+  );
+  current.headRotation[2] = dampScalar(
+    current.headRotation[2],
+    target.headRotation[2],
+    damping.head,
+    delta,
+  );
+
+  current.armLeft = dampScalar(
+    current.armLeft,
+    target.armLeft,
+    damping.arm,
+    delta,
+  );
+  current.armRight = dampScalar(
+    current.armRight,
+    target.armRight,
+    damping.arm,
+    delta,
+  );
+  current.armLeftZ = dampScalar(
+    current.armLeftZ,
+    target.armLeftZ,
+    damping.arm,
+    delta,
+  );
+  current.armRightZ = dampScalar(
+    current.armRightZ,
+    target.armRightZ,
+    damping.arm,
+    delta,
+  );
+
+  current.bodyScale = dampScalar(
+    current.bodyScale,
+    target.bodyScale,
+    damping.bodyScale,
+    delta,
+  );
+
+  current.eyeOpen = target.eyeOpen;
+
+  return current;
+}
+
+/* =========================================================
+   COLORS AND LIGHT
+========================================================= */
 
 export function getBodyColor(
   status: AgentStatus,

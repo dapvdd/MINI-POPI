@@ -6,10 +6,18 @@ import * as THREE from "three";
 import type { AgentStatus } from "@/lib/hermes/types";
 import {
   BASE_Y,
+  blendPose,
   getBodyColor,
   getPopiPose,
+  type PopiPose,
   type PopiPresence,
 } from "@/lib/popi";
+
+/**
+ * Largest delta fed to the blend, so a hidden tab or a long frame cannot make
+ * Popi lurch when it resumes.
+ */
+const MAX_STEP = 0.05;
 
 export function PopiAgent({
   status,
@@ -27,17 +35,33 @@ export function PopiAgent({
   const armRight = useRef<THREE.Group>(null);
   const eyeLeft = useRef<THREE.Mesh>(null);
   const eyeRight = useRef<THREE.Mesh>(null);
+  const smoothed = useRef<PopiPose | null>(null);
   const bodyColor = getBodyColor(status, presence);
 
   useFrame((state, delta) => {
-    const pose = getPopiPose(status, state.clock.elapsedTime, {
+    if (
+      !root.current ||
+      !body.current ||
+      !head.current ||
+      !armLeft.current ||
+      !armRight.current
+    ) {
+      return;
+    }
+
+    const target = getPopiPose(status, state.clock.elapsedTime, {
       presence,
       reducedMotion,
     });
 
-    if (!root.current || !body.current || !head.current) {
-      return;
-    }
+    // First frame and reduced motion land directly on the target; every other
+    // frame eases toward it so a status change never snaps.
+    const pose =
+      reducedMotion || smoothed.current === null
+        ? target
+        : blendPose(smoothed.current, target, Math.min(delta, MAX_STEP));
+
+    smoothed.current = pose;
 
     root.current.position.set(
       pose.position[0],
@@ -45,13 +69,9 @@ export function PopiAgent({
       pose.position[2],
     );
     root.current.rotation.x = pose.rotation[0];
+    root.current.rotation.y = pose.facing;
     root.current.rotation.z = pose.rotation[2];
-    root.current.rotation.y = THREE.MathUtils.damp(
-      root.current.rotation.y,
-      pose.facing,
-      6,
-      delta,
-    );
+
     body.current.scale.setScalar(pose.bodyScale);
     head.current.rotation.set(
       pose.headRotation[0],
@@ -59,13 +79,10 @@ export function PopiAgent({
       pose.headRotation[2],
     );
 
-    if (armLeft.current) {
-      armLeft.current.rotation.x = pose.armLeft;
-    }
-
-    if (armRight.current) {
-      armRight.current.rotation.x = pose.armRight;
-    }
+    armLeft.current.rotation.x = pose.armLeft;
+    armLeft.current.rotation.z = pose.armLeftZ;
+    armRight.current.rotation.x = pose.armRight;
+    armRight.current.rotation.z = pose.armRightZ;
 
     if (eyeLeft.current) {
       eyeLeft.current.scale.set(1, pose.eyeOpen, 1);
