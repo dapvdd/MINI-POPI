@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import * as THREE from "three";
 import type { AgentStatus } from "@/lib/hermes/types";
 import { getScreenColor, getScreenGlow } from "@/lib/popi";
@@ -299,7 +299,7 @@ function DeskProps({ status }: { status: AgentStatus }) {
   );
 }
 
-export function Workstation({
+export const Workstation = memo(function Workstation({
   spec,
   status,
 }: {
@@ -317,4 +317,4 @@ export function Workstation({
       </group>
     </group>
   );
-}
+});

@@ -2,15 +2,28 @@
 
 import { OrbitControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import * as THREE from "three";
 import type { AgentStatus } from "@/lib/hermes/types";
+import type { WorkerState } from "@/lib/hermes/workers";
 import { getPointLightColor, getPointLightIntensity } from "@/lib/popi";
-import { OFFICE_PALETTE as C, POPI_WORKSTATION } from "@/lib/office";
+import {
+  assignWorkerWorkstations,
+  OFFICE_PALETTE as C,
+  POPI_WORKSTATION,
+} from "@/lib/office";
+import {
+  selectRenderableWorkers,
+  WORKER_TERMINAL_TTL_MS,
+} from "@/lib/worker-visuals";
+import { createBadgeTexture } from "./label-texture";
 import { OfficeRoom } from "./Room";
+import { WorkerStation } from "./WorkerStation";
 import { Workstation } from "./Workstation";
 
 const CAMERA_TARGET: [number, number, number] = [0, 1.25, 0.2];
+const CAMERA_DIRECTION = new THREE.Vector3(0.6, 0.45, 1).normalize();
+const RETENTION_TICK_MS = 2000;
 
 type OrbitLike = {
   target: THREE.Vector3;
@@ -41,7 +54,72 @@ function StatusLight({ status }: { status: AgentStatus }) {
   );
 }
 
-function CameraRig() {
+/**
+ * Retention clock. Terminal workers stay visible until their TTL lapses, which
+ * needs a low-frequency re-render. `useSyncExternalStore` is the idiomatic way
+ * to read an external, time-based value without calling impure functions during
+ * render or setting state directly inside an effect.
+ */
+function subscribeRetentionClock(onStoreChange: () => void): () => void {
+  const id = window.setInterval(onStoreChange, RETENTION_TICK_MS);
+
+  return () => window.clearInterval(id);
+}
+
+function getRetentionSnapshot(): number {
+  return Math.floor(Date.now() / RETENTION_TICK_MS);
+}
+
+/**
+ * Worker state arrives over SSE after mount, so the server snapshot only needs
+ * to be stable; it is never used to render real workers.
+ */
+function getRetentionServerSnapshot(): number {
+  return 0;
+}
+
+function useRetentionNow(): number {
+  const tick = useSyncExternalStore(
+    subscribeRetentionClock,
+    getRetentionSnapshot,
+    getRetentionServerSnapshot,
+  );
+
+  return tick * RETENTION_TICK_MS;
+}
+
+function OverflowBadge({ count }: { count: number }) {
+  const material = useRef<THREE.SpriteMaterial>(null);
+  const text = `+${count} more worker${count === 1 ? "" : "s"}`;
+
+  useEffect(() => {
+    const texture = createBadgeTexture(text);
+    const current = material.current;
+
+    if (current) {
+      current.map = texture;
+      current.needsUpdate = true;
+    }
+
+    return () => {
+      texture.dispose();
+    };
+  }, [text]);
+
+  return (
+    <sprite position={[0, 3.5, -4.5]} scale={[3.2, 0.8, 1]}>
+      <spriteMaterial
+        ref={material}
+        transparent
+        depthTest={false}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </sprite>
+  );
+}
+
+function CameraRig({ focusDistance }: { focusDistance: number }) {
   const camera = useThree((state) => state.camera);
   const size = useThree((state) => state.size);
   const controls = useThree((state) => state.controls) as unknown as
@@ -50,23 +128,59 @@ function CameraRig() {
 
   useEffect(() => {
     const aspect = size.height > 0 ? size.width / size.height : 1;
-    const distance = aspect < 1 ? 11.5 : aspect < 1.5 ? 9.5 : 8;
+    const aspectDistance = aspect < 1 ? 11.5 : aspect < 1.5 ? 9.5 : 8;
+    const distance = Math.max(aspectDistance, focusDistance);
     const target = new THREE.Vector3(...CAMERA_TARGET);
-    const direction = new THREE.Vector3(0.6, 0.45, 1).normalize();
 
-    camera.position.copy(target).addScaledVector(direction, distance);
+    camera.position
+      .copy(target)
+      .addScaledVector(CAMERA_DIRECTION, distance);
     camera.lookAt(target);
 
     if (controls) {
       controls.target.copy(target);
       controls.update();
     }
-  }, [camera, size, controls]);
+  }, [camera, size, controls, focusDistance]);
 
   return null;
 }
 
-export function OfficeScene({ status }: { status: AgentStatus }) {
+export function OfficeScene({
+  status,
+  workers,
+}: {
+  status: AgentStatus;
+  workers: WorkerState[];
+}) {
+  const now = useRetentionNow();
+
+  const visibleWorkers = useMemo(
+    () => selectRenderableWorkers(workers, now, WORKER_TERMINAL_TTL_MS),
+    [workers, now],
+  );
+
+  const layout = useMemo(
+    () => assignWorkerWorkstations(visibleWorkers.map((worker) => worker.id)),
+    [visibleWorkers],
+  );
+
+  const workersById = useMemo(
+    () => new Map(visibleWorkers.map((worker) => [worker.id, worker])),
+    [visibleWorkers],
+  );
+
+  const focusDistance = useMemo(() => {
+    const extent = Math.max(
+      2.6,
+      ...layout.assignments.map(({ spec }) =>
+        Math.hypot(spec.position[0], spec.position[2]),
+      ),
+    );
+
+    return Math.min(15, extent * 0.95 + 4);
+  }, [layout]);
+
   return (
     <>
       <color attach="background" args={[C.background]} />
@@ -81,10 +195,10 @@ export function OfficeScene({ status }: { status: AgentStatus }) {
         shadow-mapSize-height={1024}
         shadow-camera-near={1}
         shadow-camera-far={40}
-        shadow-camera-left={-14}
-        shadow-camera-right={14}
-        shadow-camera-top={14}
-        shadow-camera-bottom={-14}
+        shadow-camera-left={-16}
+        shadow-camera-right={16}
+        shadow-camera-top={16}
+        shadow-camera-bottom={-16}
         shadow-bias={-0.0005}
       />
       <StatusLight status={status} />
@@ -92,13 +206,25 @@ export function OfficeScene({ status }: { status: AgentStatus }) {
       <OfficeRoom />
       <Workstation spec={POPI_WORKSTATION} status={status} />
 
-      <CameraRig />
+      {layout.assignments.map(({ workerId, spec }) => {
+        const worker = workersById.get(workerId);
+
+        return worker ? (
+          <WorkerStation key={workerId} spec={spec} worker={worker} />
+        ) : null;
+      })}
+
+      {layout.overflow.length > 0 ? (
+        <OverflowBadge count={layout.overflow.length} />
+      ) : null}
+
+      <CameraRig focusDistance={focusDistance} />
       <OrbitControls
         makeDefault
         enablePan={false}
         enableDamping
         minDistance={4}
-        maxDistance={14}
+        maxDistance={17}
         maxPolarAngle={Math.PI / 2.05}
         target={CAMERA_TARGET}
       />

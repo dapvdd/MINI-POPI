@@ -10,8 +10,8 @@ import {
 import {
   workersToArray,
   type WorkerState,
-  type WorkerStatus,
 } from "@/lib/hermes/workers";
+import { getWorkerStatusVisual } from "@/lib/worker-visuals";
 import { getBodyColor } from "@/lib/popi";
 import { OfficeScene } from "@/components/office/OfficeScene";
 
@@ -31,18 +31,6 @@ type SseState = {
   lastResponseStatus?: string | null;
   gatewayConnected?: boolean;
   workers?: Record<string, WorkerState>;
-};
-
-const WORKER_DOT: Record<WorkerStatus, string> = {
-  queued: "bg-zinc-500",
-  running: "bg-sky-400",
-  thinking: "bg-violet-400",
-  using_tool: "bg-orange-400",
-  completed: "bg-emerald-400",
-  failed: "bg-red-500",
-  error: "bg-red-500",
-  timeout: "bg-amber-400",
-  interrupted: "bg-zinc-400",
 };
 
 const BUSY_STATUSES: AgentStatus[] = [
@@ -476,7 +464,7 @@ export default function Home() {
               dpr={[1, 2]}
               camera={{ position: [5, 4, 6], fov: 50 }}
             >
-              <OfficeScene status={status} />
+              <OfficeScene status={status} workers={workers} />
             </Canvas>
 
             <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
@@ -585,41 +573,51 @@ export default function Home() {
                     Workers · {workers.length}
                   </div>
                   <ul className="space-y-1.5">
-                    {workers.map((worker) => (
-                      <li
-                        key={worker.id}
-                        data-worker-id={worker.id}
-                        className="rounded-lg border border-zinc-800 bg-zinc-950/50 px-2 py-1.5"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="flex min-w-0 items-center gap-1.5">
-                            <span
-                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${WORKER_DOT[worker.status]}`}
-                            />
-                            <span
-                              className="truncate text-[11px] text-zinc-200"
-                              title={worker.goal}
-                            >
-                              {worker.goal || "untitled task"}
+                    {workers.map((worker) => {
+                      const visual = getWorkerStatusVisual(worker.status);
+
+                      return (
+                        <li
+                          key={worker.id}
+                          data-worker-id={worker.id}
+                          className="rounded-lg border border-zinc-800 bg-zinc-950/50 px-2 py-1.5"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <span
+                                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                                style={{
+                                  backgroundColor: visual.color,
+                                }}
+                              />
+                              <span
+                                className="truncate text-[11px] text-zinc-200"
+                                title={worker.goal}
+                              >
+                                {worker.goal || "untitled task"}
+                              </span>
                             </span>
-                          </span>
-                          <span className="shrink-0 text-[10px] uppercase tracking-wide text-zinc-500">
-                            {worker.status.replace("_", " ")}
-                            {worker.taskCount > 1
-                              ? ` · ${worker.taskIndex + 1}/${worker.taskCount}`
-                              : ""}
-                          </span>
-                        </div>
-                        {worker.activity ? (
-                          <div
-                            className="mt-0.5 truncate text-[10px] text-zinc-500"
-                            title={worker.activity}
-                          >
-                            {worker.activity}
+                            <span
+                              className="shrink-0 text-[10px] uppercase tracking-wide"
+                              style={{ color: visual.color }}
+                            >
+                              {visual.label}
+                              {worker.taskCount > 1
+                                ? ` · ${worker.taskIndex + 1}/${worker.taskCount}`
+                                : ""}
+                            </span>
                           </div>
-                        ) : null}
-                      </li>
-                    ))}
+                          {worker.activity ? (
+                            <div
+                              className="mt-0.5 truncate text-[10px] text-zinc-500"
+                              title={worker.activity}
+                            >
+                              {worker.activity}
+                            </div>
+                          ) : null}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ) : null}
