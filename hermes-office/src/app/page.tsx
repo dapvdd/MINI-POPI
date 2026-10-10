@@ -20,6 +20,7 @@ import {
 } from "@/lib/hermes/interrupt";
 import { getWorkerStatusVisual } from "@/lib/worker-visuals";
 import { getBodyColor } from "@/lib/popi";
+import { getComposerState } from "@/lib/composer";
 import { OfficeScene } from "@/components/office/OfficeScene";
 
 
@@ -367,7 +368,7 @@ export default function Home() {
 
   async function sendPrompt(text: string) {
     const clean = text.trim();
-    if (!clean || sending) return;
+    if (!clean || sending || !connected || !gatewayConnected) return;
 
     setSending(true);
     setSubmitError(null);
@@ -497,7 +498,12 @@ export default function Home() {
   ========================================================= */
 
   const busy = sending;
-  const canSend = connected && !busy && prompt.trim().length > 0;
+  const composerState = getComposerState({
+    connected,
+    gatewayConnected,
+    sending: busy,
+    hasPrompt: prompt.trim().length > 0,
+  });
   const turnCount = conversation.messages.filter(
     (message) => message.role === "user",
   ).length;
@@ -997,14 +1003,22 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => sendPrompt(prompt)}
-                disabled={!canSend}
+                disabled={!composerState.canSend}
                 className="h-[52px] shrink-0 rounded-lg border border-emerald-600/50 bg-emerald-600/20 px-5 text-sm font-semibold text-emerald-300 transition enabled:hover:bg-emerald-600/30 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {busy ? "Sending…" : "Send"}
+                {busy ? "Sending..." : "Send"}
               </button>
             </div>
 
             <div className="flex items-center justify-between gap-2">
+              <span
+                aria-live="polite"
+                className={`truncate text-[10px] ${
+                  composerState.canSend ? "text-zinc-600" : "text-amber-400/80"
+                }`}
+              >
+                {composerState.hint}
+              </span>
               <button
                 type="button"
                 onClick={runTest}
