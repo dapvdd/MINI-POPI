@@ -6,7 +6,6 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
   useSyncExternalStore,
 } from "react";
 import * as THREE from "three";
@@ -21,21 +20,36 @@ import {
 } from "@/lib/popi";
 import {
   assignWorkerWorkstations,
+  CEILING_BANDS,
+  OFFICE_LAYOUT,
   OFFICE_PALETTE as C,
   POPI_WORKSTATION,
 } from "@/lib/office";
-import { atmosphereBreath, resolveAtmosphere, type RoomAtmosphere } from "@/lib/environment";
+import { resolveAtmosphere, resolveRoomLighting, atmosphereBreath, type RoomAtmosphere } from "@/lib/environment";
 import {
   selectRenderableWorkers,
   WORKER_TERMINAL_TTL_MS,
 } from "@/lib/worker-visuals";
+import {
+  resolvePopiBehavior,
+  resolveVisor,
+  type VisorMode,
+} from "@/lib/popi-behavior";
+import { usePrefersReducedMotion } from "./use-prefers-reduced-motion";
 import { createBadgeTexture } from "./label-texture";
+import { PopiScreenAnchor, type PopiAnchorProbe } from "./PopiSpeechBubble";
 import { OfficeRoom } from "./Room";
 import { ServerRack } from "./ServerRack";
 import { WorkerStation } from "./WorkerStation";
 import { Workstation } from "./Workstation";
 
-const CAMERA_TARGET: [number, number, number] = [0, 1.25, 0.2];
+/**
+ * Camera framing. The target sits between Popi and her workstation so both read
+ * as the subject, and the direction keeps the asymmetric room (near left wall,
+ * far right wall) in frame. `CAMERA_TARGET` is height 1.45 because Popi's head
+ * sits around y = 2.2 at the character scale used in `popi.ts`.
+ */
+const CAMERA_TARGET: [number, number, number] = [0, 1.45, 0.7];
 const CAMERA_DIRECTION = new THREE.Vector3(0.6, 0.45, 1).normalize();
 const RETENTION_TICK_MS = 2000;
 
@@ -47,9 +61,12 @@ type OrbitLike = {
 function StatusLight({
   status,
   presence,
+  visor,
 }: {
   status: AgentStatus;
   presence: PopiPresence;
+  /** Phantom mode: the agent light cools to terminal cyan. */
+  visor: boolean;
 }) {
   const light = useRef<THREE.PointLight>(null);
 
@@ -70,35 +87,11 @@ function StatusLight({
       intensity={1}
       distance={16}
       decay={2}
-      color={getPointLightColor(status, presence)}
+      color={visor ? "#22d3ee" : getPointLightColor(status, presence)}
     />
   );
 }
 
-/**
- * One media-query subscription for the whole scene. When the user prefers
- * reduced motion, pose helpers collapse to a single stable frame so no
- * continuous oscillation reaches the render loop.
- */
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) {
-      return;
-    }
-
-    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReduced(query.matches);
-
-    update();
-    query.addEventListener("change", update);
-
-    return () => query.removeEventListener("change", update);
-  }, []);
-
-  return reduced;
-}
 
 /**
  * Retention clock. Terminal workers stay visible until their TTL lapses, which
@@ -169,12 +162,19 @@ function OverflowBadge({ count }: { count: number }) {
  * Cyan rim + violet bounce. Both breathe on the shared atmosphere model, so an
  * IDLE room drifts gently while WORKING/ERROR read as clearly livelier. Under
  * reduced motion they hold a single static value.
+ *
+ * In Phantom mode the room goes colder: the rim hardens to terminal cyan and
+ * the violet bounce drops away.
  */
 function StructuralLights({
   atmosphere,
+  lighting,
+  visor,
   reducedMotion,
 }: {
   atmosphere: RoomAtmosphere;
+  lighting: { rim: number; fill: number };
+  visor: boolean;
   reducedMotion: boolean;
 }) {
   const rim = useRef<THREE.PointLight>(null);
@@ -186,11 +186,11 @@ function StructuralLights({
       : atmosphereBreath(atmosphere.mood, state.clock.elapsedTime);
 
     if (rim.current) {
-      rim.current.intensity = atmosphere.rim * 3 * breath;
+      rim.current.intensity = lighting.rim * breath;
     }
 
     if (fill.current) {
-      fill.current.intensity = atmosphere.fill * 3.4 * breath;
+      fill.current.intensity = lighting.fill * breath * (visor ? 0.45 : 1);
     }
   });
 
@@ -199,19 +199,62 @@ function StructuralLights({
       <pointLight
         ref={rim}
         position={[2, 3.4, -4.6]}
-        intensity={atmosphere.rim * 3}
+        intensity={lighting.rim}
         distance={21}
         decay={2}
-        color={C.accent}
+        color={visor ? "#67e8f9" : C.accent}
       />
       <pointLight
         ref={fill}
         position={[-6.2, 2.6, 2.4]}
-        intensity={atmosphere.fill * 3.4}
+        intensity={lighting.fill}
         distance={17}
         decay={2}
-        color={C.violet}
+        color={visor ? "#64748b" : C.violet}
       />
+    </>
+  );
+}
+
+/**
+ * Ceiling light bands. Without them the room has no overhead source and the
+ * walls collapse into the background color, which is exactly what made the
+ * office read as nearly black.
+ */
+function CeilingLights({
+  intensity,
+  reducedMotion,
+}: {
+  intensity: number;
+  reducedMotion: boolean;
+}) {
+  const lights = useRef<Array<THREE.PointLight | null>>([]);
+
+  useFrame((state) => {
+    const t = reducedMotion ? 0 : state.clock.elapsedTime;
+
+    lights.current.forEach((light, index) => {
+      if (!light) return;
+
+      light.intensity = intensity * (1 + Math.sin(t * 0.8 + index * 1.7) * 0.05);
+    });
+  });
+
+  return (
+    <>
+      {CEILING_BANDS.map((z, index) => (
+        <pointLight
+          key={z}
+          ref={(light) => {
+            lights.current[index] = light;
+          }}
+          position={[0, OFFICE_LAYOUT.ceilingY - 0.5, z]}
+          intensity={intensity}
+          distance={15}
+          decay={2}
+          color="#dbeafe"
+        />
+      ))}
     </>
   );
 }
@@ -225,7 +268,9 @@ function CameraRig({ focusDistance }: { focusDistance: number }) {
 
   useEffect(() => {
     const aspect = size.height > 0 ? size.width / size.height : 1;
-    const aspectDistance = aspect < 1 ? 11.5 : aspect < 1.5 ? 9.5 : 8;
+    // Narrow viewports need more distance, not less: the workstation plus the
+    // character has to stay inside the shorter axis.
+    const aspectDistance = aspect < 1 ? 9.8 : aspect < 1.5 ? 8.6 : 7.2;
     const distance = Math.max(aspectDistance, focusDistance);
     const target = new THREE.Vector3(...CAMERA_TARGET);
 
@@ -250,6 +295,10 @@ export function OfficeScene({
   gatewayConnected,
   connectionError,
   tool,
+  command,
+  turnSeq = 0,
+  visorMode = "auto",
+  probe,
 }: {
   status: AgentStatus;
   workers: WorkerState[];
@@ -258,6 +307,11 @@ export function OfficeScene({
   connectionError: GatewayErrorKind | null;
   /** Live tool name when the agent is using one; drives the tool monitor. */
   tool?: string | null;
+  /** Live command/context string for the active tool, when there is one. */
+  command?: string | null;
+  turnSeq?: number;
+  visorMode?: VisorMode;
+  probe?: React.RefObject<PopiAnchorProbe>;
 }) {
   const now = useRetentionNow();
   const reducedMotion = usePrefersReducedMotion();
@@ -277,6 +331,13 @@ export function OfficeScene({
     [status, presence],
   );
 
+  const lighting = useMemo(() => resolveRoomLighting(atmosphere), [atmosphere]);
+
+  const visor = useMemo(
+    () => resolveVisor(resolvePopiBehavior(status, presence), visorMode),
+    [status, presence, visorMode],
+  );
+
   const visibleWorkers = useMemo(
     () => selectRenderableWorkers(workers, now, WORKER_TERMINAL_TTL_MS),
     [workers, now],
@@ -294,34 +355,34 @@ export function OfficeScene({
 
   const focusDistance = useMemo(() => {
     const extent = Math.max(
-      2.6,
+      2.8,
       ...layout.assignments.map(({ spec }) =>
         Math.hypot(spec.position[0], spec.position[2]),
       ),
     );
 
-    return Math.min(15, extent * 0.95 + 4);
+    return Math.min(15, extent * 0.85 + 3.4);
   }, [layout]);
 
   return (
     <>
       <color attach="background" args={[C.background]} />
       {/* Depth haze: keeps the far wall from clipping flat against the sky. */}
-      <fog attach="fog" args={[C.background, 14, 34]} />
+      <fog attach="fog" args={[C.background, 11, 32]} />
 
-      <ambientLight intensity={atmosphere.ambient} />
+      <ambientLight intensity={lighting.ambient} />
       <hemisphereLight
-        args={["#24365c", "#070b14", atmosphere.hemisphere]}
+        args={["#42598a", "#1b2438", lighting.hemisphere]}
       />
 
       {/* Key light — the only shadow caster. */}
       <directionalLight
         castShadow
         position={[6, 10, 5]}
-        intensity={1.35}
-        color="#dbeafe"
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
+        intensity={lighting.key}
+        color={visor ? "#8fd7f7" : "#dbeafe"}
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
         shadow-camera-near={1}
         shadow-camera-far={40}
         shadow-camera-left={-16}
@@ -331,16 +392,23 @@ export function OfficeScene({
         shadow-bias={-0.0005}
       />
 
-      <StructuralLights atmosphere={atmosphere} reducedMotion={reducedMotion} />
+      <CeilingLights intensity={lighting.ceilingPoint} reducedMotion={reducedMotion} />
+
+      <StructuralLights
+        atmosphere={atmosphere}
+        lighting={lighting}
+        visor={visor}
+        reducedMotion={reducedMotion}
+      />
 
       {/* Cool fill so the right side never falls to mud. */}
       <directionalLight
         position={[-8, 5, 7]}
-        intensity={0.5}
+        intensity={lighting.coolFill}
         color="#93c5fd"
       />
 
-      <StatusLight status={status} presence={presence} />
+      <StatusLight status={status} presence={presence} visor={visor} />
 
       <OfficeRoom
         status={status}
@@ -354,6 +422,10 @@ export function OfficeScene({
         presence={presence}
         reducedMotion={reducedMotion}
         tool={tool}
+        command={command}
+        turnSeq={turnSeq}
+        visorMode={visorMode}
+        probe={probe}
       />
 
       {layout.assignments.map(({ workerId, spec }) => {
@@ -372,6 +444,8 @@ export function OfficeScene({
       {layout.overflow.length > 0 ? (
         <OverflowBadge count={layout.overflow.length} />
       ) : null}
+
+      {probe ? <PopiScreenAnchor probe={probe} /> : null}
 
       <CameraRig focusDistance={focusDistance} />
       <OrbitControls

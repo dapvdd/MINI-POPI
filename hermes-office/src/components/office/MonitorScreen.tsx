@@ -78,11 +78,13 @@ export function MonitorScreen({
   status,
   presence,
   tool,
+  command,
   reducedMotion = false,
 }: {
   status: AgentStatus;
   presence: PopiPresence;
   tool?: string | null;
+  command?: string | null;
   reducedMotion?: boolean;
 }) {
   // The canvas and its texture live in refs: they are GPU-owned resource
@@ -165,6 +167,7 @@ export function MonitorScreen({
       reducedMotion ? 0 : state.clock.elapsedTime,
       scroll.current,
       tool,
+      command,
     );
     texture.needsUpdate = true;
   });
@@ -190,6 +193,7 @@ function drawScreen(
   t: number,
   scroll: number,
   tool?: string | null,
+  command?: string | null,
 ) {
   ctx.fillStyle = "#050810";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
@@ -271,6 +275,13 @@ function drawScreen(
       ctx.fillStyle = "#e2e8f0";
       ctx.font = "700 15px monospace";
       ctx.fillText(label, 16, 44);
+      // Real command context whenever the Gateway reported one.
+      const line = (command ?? "").trim();
+      if (line) {
+        ctx.fillStyle = "rgba(148, 163, 184, 0.85)";
+        ctx.font = "600 10px monospace";
+        ctx.fillText(`> ${line.slice(0, 30)}`, 16, 60);
+      }
       // Activity placeholder driven only by the tool name — no fake output.
       ctx.strokeStyle = "rgba(56, 189, 248, 0.7)";
       ctx.lineWidth = 1.5;
@@ -285,18 +296,32 @@ function drawScreen(
     }
 
     case "terminal": {
-      const lineHeight = 20;
-      const offset = (scroll % lineHeight) - lineHeight;
-      ctx.font = "600 11px monospace";
-      const shell = ["> agent turn", "> stream ok", "> exit 0", "> ready"];
-      shell.forEach((line, index) => {
-        const y = 28 + index * lineHeight + offset;
-        if (y < -10 || y > SCREEN_H + 10) return;
-        ctx.fillStyle = "rgba(74, 222, 128, 0.9)";
-        ctx.fillText(line, 16, y);
-      });
+      // Phantom mode shows what is actually known: the tool the Gateway
+      // reported and its command context. Nothing here implies output.
       ctx.fillStyle = "rgba(74, 222, 128, 0.9)";
-      ctx.fillRect(16, SCREEN_H - 22, 8, 12);
+      ctx.font = "700 11px monospace";
+      ctx.fillText("TERMINAL", 16, 24);
+
+      const rows: string[] = [];
+      const toolLabel = (tool ?? "").trim().toUpperCase();
+      const commandLine = (command ?? "").trim().toUpperCase();
+      if (toolLabel) rows.push(`TOOL ${toolLabel.slice(0, 22)}`);
+      if (commandLine) rows.push(`CMD ${commandLine.slice(0, 24)}`);
+
+      ctx.font = "600 12px monospace";
+      rows.forEach((row, index) => {
+        ctx.fillStyle = index === 0 ? "#bbf7d0" : "rgba(148, 163, 184, 0.9)";
+        ctx.fillText(row, 16, 46 + index * 17);
+      });
+
+      // Scrolling caret block: motion without invented content.
+      const caret = (scroll % 24) / 24;
+      ctx.fillStyle = "rgba(34, 211, 238, 0.85)";
+      ctx.fillRect(16, SCREEN_H - 34 + caret * 18, 9, 11);
+      ctx.fillStyle = "rgba(74, 222, 128, 0.35)";
+      for (let i = 0; i < 5; i += 1) {
+        ctx.fillRect(30 + i * 13, SCREEN_H - 22, 8, 2);
+      }
       break;
     }
 

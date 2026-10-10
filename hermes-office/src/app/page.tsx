@@ -1,7 +1,8 @@
 "use client";
 
 import { Canvas } from "@react-three/fiber";
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import * as THREE from "three";
 import type { AgentStatus } from "@/lib/hermes/types";
 import type { GatewayErrorKind } from "@/lib/hermes/connection";
 import {
@@ -20,8 +21,15 @@ import {
 } from "@/lib/hermes/interrupt";
 import { getWorkerStatusVisual } from "@/lib/worker-visuals";
 import { getBodyColor } from "@/lib/popi";
+import type { VisorMode } from "@/lib/popi-behavior";
 import { getComposerState } from "@/lib/composer";
 import { OfficeScene } from "@/components/office/OfficeScene";
+import {
+  createPopiAnchorProbe,
+  PopiSpeechBubble,
+  useSpeechBubble,
+} from "@/components/office/PopiSpeechBubble";
+import { usePrefersReducedMotion } from "@/components/office/use-prefers-reduced-motion";
 
 
 /* =========================================================
@@ -153,6 +161,17 @@ export default function Home() {
   const [interrupting, setInterrupting] = useState(false);
   const [interruptMsg, setInterruptMsg] =
     useState<InterruptMessage | null>(null);
+  const [visorMode, setVisorMode] = useState<VisorMode>("auto");
+  /** Live completed-turn counter, used by the bubble and the scene. */
+  const [turnSeq, setTurnSeq] = useState(0);
+  /** Increments only on a turn this page actually saw finish. */
+  const [celebrationKey, setCelebrationKey] = useState(0);
+
+  /** Popi's screen-space anchor, published from inside the Canvas. */
+  const popiProbe = useRef(createPopiAnchorProbe());
+  /** Ref to the 3D viewport box, used to keep the bubble inside it. */
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const reducedMotion = usePrefersReducedMotion();
 
   const syncedRef = useRef(false);
   const turnSeqRef = useRef(0);
@@ -201,6 +220,7 @@ export default function Home() {
       if (!syncedRef.current) {
         syncedRef.current = true;
         turnSeqRef.current = nextTurnSeq;
+        setTurnSeq(nextTurnSeq);
         gatewayRef.current = nextGateway;
         dispatchConversation({
           type: "sync-turn-seq",
@@ -208,6 +228,9 @@ export default function Home() {
         });
       } else if (nextTurnSeq > turnSeqRef.current) {
         turnSeqRef.current = nextTurnSeq;
+        setTurnSeq(nextTurnSeq);
+        // Only a turn this session actually watched finish may celebrate.
+        setCelebrationKey((previous) => previous + 1);
         dispatchConversation({
           type: "turn-completed",
           turnSeq: nextTurnSeq,
@@ -507,6 +530,45 @@ export default function Home() {
   const turnCount = conversation.messages.filter(
     (message) => message.role === "user",
   ).length;
+
+  /* =========================================================
+     SPEECH BUBBLE INPUT
+     Derived from the live conversation only: a pending assistant
+     message means a response is genuinely in flight, and the last
+     finished reply is the only text Popi is allowed to say. The
+     full text always stays in the Conversation panel.
+     ========================================================= */
+  const pendingMessage =
+    conversation.messages.find((message) => message.status === "pending") ??
+    null;
+
+  const latestReply = useMemo(() => {
+    for (let index = conversation.messages.length - 1; index >= 0; index -= 1) {
+      const message = conversation.messages[index];
+
+      if (message.role === "assistant" && message.status !== "pending") {
+        return message;
+      }
+    }
+
+    return null;
+  }, [conversation.messages]);
+
+  const bubbleInput = useMemo(() => {
+    // `pending` is filtered out above, so this is null unless a real result
+    // status exists for the last finished reply.
+    const status = latestReply && latestReply.status !== "pending" ? latestReply.status : null;
+
+    return {
+      sessionId,
+      pendingId: pendingMessage ? pendingMessage.id : null,
+      turnSeq,
+      response: latestReply ? latestReply.text : null,
+      responseStatus: status,
+    };
+  }, [sessionId, pendingMessage, turnSeq, latestReply]);
+
+  const bubbleMessage = useSpeechBubble(bubbleInput);
   const selectedWorker = selectedWorkerId
     ? workers.find((worker) => worker.id === selectedWorkerId) ?? null
     : null;
@@ -549,16 +611,27 @@ export default function Home() {
         {/* LEFT: AGENT + ACTIVITY + EVENTS */}
         <section className="flex min-h-0 flex-col gap-4">
           {/* 3D VIEWPORT */}
-          <div className="relative h-[300px] shrink-0 overflow-hidden rounded-xl border border-zinc-800 bg-gradient-to-b from-zinc-900/70 to-zinc-950 lg:h-auto lg:min-h-[220px] lg:flex-[7]">
+          <div
+            ref={viewportRef}
+            className="relative h-[300px] shrink-0 overflow-hidden rounded-xl border border-zinc-800 bg-gradient-to-b from-zinc-900/70 to-zinc-950 lg:h-auto lg:min-h-[220px] lg:flex-[7]"
+          >
             <Canvas
               shadows
               dpr={[1, 2]}
+              gl={{
+                toneMapping: THREE.ACESFilmicToneMapping,
+                toneMappingExposure: 1.2,
+              }}
               camera={{ position: [5, 4, 6], fov: 50 }}
             >
               <OfficeScene
                 status={status}
                 workers={workers}
                 tool={tool === "-" ? null : tool}
+                command={command === "-" ? null : command}
+                turnSeq={celebrationKey}
+                visorMode={visorMode}
+                probe={popiProbe}
                 sseConnected={connected}
                 gatewayConnected={gatewayConnected}
                 connectionError={connectionError}
@@ -572,6 +645,36 @@ export default function Home() {
                   active
                 </span>
               ) : null}
+            </div>
+
+            <PopiSpeechBubble
+              message={bubbleMessage}
+              probe={popiProbe}
+              viewportRef={viewportRef}
+              reducedMotion={reducedMotion}
+            />
+
+            {/* Phantom visor toggle: opt out of the terminal effect. */}
+            <div className="absolute right-3 top-[52px] flex items-center gap-1.5">
+              <span className="text-[9px] uppercase tracking-widest text-zinc-600">
+                visor
+              </span>
+              {(["auto", "off"] as VisorMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setVisorMode(mode)}
+                  aria-pressed={visorMode === mode}
+                  data-visor-mode={mode}
+                  className={`rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-widest transition ${
+                    visorMode === mode
+                      ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-200"
+                      : "border-zinc-700 bg-zinc-950/60 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  {mode}
+                </button>
+              ))}
             </div>
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-zinc-950 via-zinc-950/70 to-transparent px-3 pb-2 pt-8">

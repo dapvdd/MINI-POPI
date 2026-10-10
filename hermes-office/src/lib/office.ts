@@ -23,17 +23,17 @@ export interface WorkstationSpec {
  * deliberately avoided: every surface must stay readable against the key light.
  */
 export const OFFICE_PALETTE = {
-  background: "#070b14",
-  floor: "#171d2b",
-  floorLine: "#22304a",
-  wall: "#1e2534",
-  wallPanel: "#26304a",
-  wallTrim: "#33415e",
-  rug: "#232b41",
-  desk: "#2a3247",
-  deskEdge: "#3b4767",
-  metal: "#1f2634",
-  metalLight: "#39435c",
+  background: "#0b1526",
+  floor: "#1d2537",
+  floorLine: "#2b3c5c",
+  wall: "#232c3f",
+  wallPanel: "#2c3854",
+  wallTrim: "#3d4c6d",
+  rug: "#2a3350",
+  desk: "#333d57",
+  deskEdge: "#47537a",
+  metal: "#28304a",
+  metalLight: "#4a567a",
   screenFrame: "#080c14",
   accent: "#22d3ee",
   accentSoft: "#38bdf8",
@@ -145,6 +145,19 @@ export const POPI_DESK_BOUNDS = {
   minZ: -1,
   maxZ: 0.6,
 } as const;
+
+/**
+ * Where the character rig is mounted inside Popi's workstation group. She
+ * stands just in front of the desk's front edge with her own chair behind her,
+ * so the desk and its monitors read as her workspace from the default camera.
+ */
+export const POPI_AGENT_OFFSET: Vec3 = [0, 0, 1.3];
+
+/** Shallow task chair at Popi's station; she sits here when a state seats her. */
+export const POPI_CHAIR_POSITION: Vec3 = [-0.1, 0, 1.9];
+
+/** Footrest bolted to the chair keeps her feet off the floor while seated. */
+export const POPI_CHAIR_FOOTREST: Vec3 = [-0.1, 0.34, 1.9];
 
 /** Popi's station sits at the world origin and anchors the scene. */
 export const POPI_WORKSTATION: WorkstationSpec = {

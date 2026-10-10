@@ -183,3 +183,48 @@ export function atmosphereBreath(mood: AtmosphereMood, t: number): number {
 export function isStaticAtmosphere(mood: AtmosphereMood): boolean {
   return mood === "down";
 }
+
+/* =========================================================
+   CONCRETE LIGHTING
+   `resolveAtmosphere` stays a small, normalized mood model so it
+   remains unit-testable; this is where those weights turn into
+   real light values. The gains exist because a dark navy room
+   needs a lot of fill before it stops reading as a black void.
+   ========================================================= */
+
+export const ROOM_LIGHT_GAIN = {
+  ambient: 2.9,
+  hemisphere: 1.45,
+  key: 1.75,
+  coolFill: 0.85,
+  ceiling: 1.3,
+} as const;
+
+export interface RoomLighting {
+  ambient: number;
+  hemisphere: number;
+  /** Key directional light; the only shadow caster. */
+  key: number;
+  /** Non-shadow cool fill from the opposite side. */
+  coolFill: number;
+  /** Cyan structural rim (breathing is applied by the scene). */
+  rim: number;
+  /** Violet bounce (breathing is applied by the scene). */
+  fill: number;
+  /** Per-band ceiling point lights. */
+  ceilingPoint: number;
+}
+
+export function resolveRoomLighting(
+  atmosphere: RoomAtmosphere,
+): RoomLighting {
+  return {
+    ambient: atmosphere.ambient * ROOM_LIGHT_GAIN.ambient,
+    hemisphere: atmosphere.hemisphere * ROOM_LIGHT_GAIN.hemisphere,
+    key: ROOM_LIGHT_GAIN.key + atmosphere.ambient * 0.9,
+    coolFill: ROOM_LIGHT_GAIN.coolFill + atmosphere.hemisphere * 0.5,
+    rim: atmosphere.rim * 3,
+    fill: atmosphere.fill * 3.4,
+    ceilingPoint: 0.9 + atmosphere.ceiling * ROOM_LIGHT_GAIN.ceiling,
+  };
+}

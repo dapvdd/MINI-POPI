@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  ROOM_LIGHT_GAIN,
   atmosphereBreath,
   isStaticAtmosphere,
   resolveAtmosphere,
+  resolveRoomLighting,
   type AtmosphereMood,
 } from "./environment";
 import type { AgentStatus } from "./hermes/types";
@@ -146,5 +148,79 @@ describe("isStaticAtmosphere", () => {
     expect(isStaticAtmosphere("down")).toBe(true);
     expect(isStaticAtmosphere("calm")).toBe(false);
     expect(isStaticAtmosphere("busy")).toBe(false);
+  });
+});
+
+describe("resolveRoomLighting", () => {
+  const STATUSES: AgentStatus[] = [
+    "OFFLINE",
+    "IDLE",
+    "THINKING",
+    "USING_TOOL",
+    "WORKING",
+    "TERMINAL",
+    "ERROR",
+  ];
+  const PRESENCES: PopiPresence[] = [
+    "online",
+    "sse-down",
+    "gateway-down",
+    "auth-error",
+  ];
+
+  it("turns every mood into concrete, positive light values", () => {
+    for (const status of STATUSES) {
+      for (const presence of PRESENCES) {
+        const lighting = resolveRoomLighting(resolveAtmosphere(status, presence));
+
+        for (const key of [
+          "ambient",
+          "hemisphere",
+          "key",
+          "coolFill",
+          "rim",
+          "fill",
+          "ceilingPoint",
+        ] as const) {
+          expect(Number.isFinite(lighting[key])).toBe(true);
+          expect(lighting[key]).toBeGreaterThan(0);
+        }
+      }
+    }
+  });
+
+  it("keeps the room readable even in the dimmest mood", () => {
+    // The whole point of the gain stage: no mood may fall back to near-black.
+    const down = resolveRoomLighting(resolveAtmosphere("WORKING", "sse-down"));
+    const calm = resolveRoomLighting(resolveAtmosphere("IDLE", "online"));
+
+    expect(down.ambient).toBeGreaterThan(0.4);
+    expect(calm.ambient).toBeGreaterThan(0.7);
+    expect(calm.key).toBeGreaterThan(calm.ambient);
+    expect(calm.ceilingPoint).toBeGreaterThan(0.9);
+  });
+
+  it("brightens the key and rim lights for active states", () => {
+    const idle = resolveRoomLighting(resolveAtmosphere("IDLE"));
+    const busy = resolveRoomLighting(resolveAtmosphere("WORKING"));
+
+    expect(busy.key).toBeGreaterThan(idle.key);
+    expect(busy.rim).toBeGreaterThan(idle.rim);
+    expect(busy.ceilingPoint).toBeGreaterThan(idle.ceilingPoint);
+  });
+
+  it("stays within sane render bounds for every mood", () => {
+    for (const status of STATUSES) {
+      for (const presence of PRESENCES) {
+        const lighting = resolveRoomLighting(
+          resolveAtmosphere(status, presence),
+        );
+
+        expect(lighting.ambient).toBeLessThanOrEqual(2);
+        expect(lighting.key).toBeLessThanOrEqual(3.5);
+        expect(lighting.rim).toBeLessThanOrEqual(6);
+        expect(ROOM_LIGHT_GAIN.ambient).toBeGreaterThan(1);
+      }
+    }
   });
 });

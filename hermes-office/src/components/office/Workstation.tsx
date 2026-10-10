@@ -9,11 +9,18 @@ import {
   getScreenGlow,
   type PopiPresence,
 } from "@/lib/popi";
-import { OFFICE_PALETTE as C, type WorkstationSpec } from "@/lib/office";
+import type { VisorMode } from "@/lib/popi-behavior";
+import {
+  OFFICE_PALETTE as C,
+  POPI_AGENT_OFFSET,
+  POPI_CHAIR_FOOTREST,
+  POPI_CHAIR_POSITION,
+  type WorkstationSpec,
+} from "@/lib/office";
 import { PopiAgent } from "./PopiAgent";
 import { MonitorScreen } from "./MonitorScreen";
+import type { PopiAnchorProbe } from "./PopiSpeechBubble";
 
-const AGENT_OFFSET: [number, number, number] = [0, 0, 1.15];
 const DESK_TOP_Y = 0.79;
 
 /* =========================================================
@@ -86,27 +93,38 @@ function Desk() {
   );
 }
 
+/**
+ * Shallow task chair sized for the character: the seat top sits at y = 0.40,
+ * which is the height `POPI_SEAT_ANCHOR` puts her hips on. Its footprint is
+ * also what `popi-navigation.ts` uses to keep a wandering Popi off it, so the
+ * chair has to stay shallow enough that she can stand in front of it.
+ */
 function Chair() {
   const arms = [0, 1, 2, 3, 4];
+  const [x, , z] = POPI_CHAIR_POSITION;
 
   return (
-    <group position={[-0.1, 0, 2.05]}>
-      <mesh position={[0, 0.5, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.82, 0.12, 0.8]} />
+    <group position={[x, 0, z]}>
+      <mesh position={[0, 0.33, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.82, 0.14, 0.6]} />
         <meshStandardMaterial color={C.metalLight} roughness={0.7} />
       </mesh>
 
-      <mesh position={[0, 0.96, 0.32]} rotation={[-0.14, 0, 0]} castShadow>
-        <boxGeometry args={[0.82, 0.9, 0.12]} />
+      <mesh position={[0, 0.78, 0.4]} rotation={[-0.14, 0, 0]} castShadow>
+        <boxGeometry args={[0.8, 0.86, 0.12]} />
         <meshStandardMaterial color={C.metalLight} roughness={0.7} />
       </mesh>
+      {/* Back cushion she actually leans against. */}
+      <mesh position={[0, 0.78, 0.32]} rotation={[-0.14, 0, 0]}>
+        <boxGeometry args={[0.68, 0.7, 0.05]} />
+        <meshStandardMaterial color={C.metal} roughness={0.85} />
+      </mesh>
 
-      <mesh position={[0, 0.28, 0]}>
-        <cylinderGeometry args={[0.06, 0.06, 0.46, 12]} />
+      <mesh position={[0, 0.15, 0]}>
+        <cylinderGeometry args={[0.06, 0.06, 0.3, 12]} />
         <meshStandardMaterial color={C.metal} metalness={0.5} />
       </mesh>
-
-      <mesh position={[0, 0.06, 0]}>
+      <mesh position={[0, 0.04, 0]}>
         <cylinderGeometry args={[0.09, 0.09, 0.08, 12]} />
         <meshStandardMaterial color={C.metal} metalness={0.5} />
       </mesh>
@@ -130,6 +148,26 @@ function Chair() {
           </mesh>
         );
       })}
+
+      {/* Footrest */}
+      <group
+        position={[
+          POPI_CHAIR_FOOTREST[0] - x,
+          POPI_CHAIR_FOOTREST[1],
+          POPI_CHAIR_FOOTREST[2] - z,
+        ]}
+      >
+        <mesh castShadow>
+          <boxGeometry args={[0.66, 0.05, 0.12]} />
+          <meshStandardMaterial color={C.metalLight} roughness={0.7} />
+        </mesh>
+        {[-0.24, 0.24].map((offset) => (
+          <mesh key={offset} position={[offset, -0.17, 0]}>
+            <boxGeometry args={[0.05, 0.34, 0.05]} />
+            <meshStandardMaterial color={C.metal} metalness={0.4} />
+          </mesh>
+        ))}
+      </group>
     </group>
   );
 }
@@ -137,16 +175,18 @@ function Chair() {
 /* =========================================================
    KEYBOARD
    One instanced mesh for the whole key grid: a full-size
-   keyboard costs a single draw call.
-======================================================== */
+   keyboard costs a single draw call. Keys only move for a
+   real tool run, and the amplitude is the typing intensity.
+   ======================================================== */
 
 const KEYBOARD_ROWS = [14, 14, 13, 12, 8];
 const KEY_W = 0.075;
 const KEY_H = 0.075;
 
-function Keyboard({ typing }: { typing: boolean }) {
+function Keyboard({ typing }: { typing: number }) {
   const keys = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  const intensity = useRef(typing);
 
   useLayoutEffect(() => {
     const mesh = keys.current;
@@ -160,7 +200,11 @@ function Keyboard({ typing }: { typing: boolean }) {
       let x = -totalWidth / 2 + KEY_W / 2 + (row % 2) * KEY_W * 0.35;
 
       for (let key = 0; key < count; key += 1) {
-        dummy.position.set(x, 0, row * KEY_H * 1.05 - KEYBOARD_ROWS.length * 0.04);
+        dummy.position.set(
+          x,
+          0,
+          row * KEY_H * 1.05 - KEYBOARD_ROWS.length * 0.04,
+        );
         dummy.updateMatrix();
         mesh.setMatrixAt(index, dummy.matrix);
         index += 1;
@@ -173,25 +217,33 @@ function Keyboard({ typing }: { typing: boolean }) {
     mesh.instanceMatrix.needsUpdate = true;
   }, [dummy]);
 
-  // A few rows ride up while typing so the keys read as pressed.
-  useFrame((state) => {
+  // A few rows ride up while typing so the keys read as pressed. The step is
+  // eased, not switched, so an idle keyboard settles instead of freezing.
+  useFrame((state, delta) => {
     const mesh = keys.current;
     if (!mesh) return;
 
+    const target = Math.min(1, Math.max(0, typing));
+    intensity.current +=
+      (target - intensity.current) * (1 - Math.exp(-8 * Math.min(delta, 0.25)));
+
+    const amount = intensity.current;
     const t = state.clock.elapsedTime;
     let index = 0;
 
-    KEYBOARD_ROWS.forEach((count, row) => {
-      const bob = typing ? Math.abs(Math.sin(t * 9 + row * 0.5)) * 0.012 : 0;
-      for (let key = 0; key < count; key += 1) {
-        dummy.position.y = bob;
-        dummy.updateMatrix();
-        mesh.setMatrixAt(index, dummy.matrix);
-        index += 1;
-      }
-    });
+    if (amount > 0.001) {
+      KEYBOARD_ROWS.forEach((count, row) => {
+        const bob = Math.abs(Math.sin(t * 9 + row * 0.5)) * 0.014 * amount;
+        for (let key = 0; key < count; key += 1) {
+          dummy.position.y = bob;
+          dummy.updateMatrix();
+          mesh.setMatrixAt(index, dummy.matrix);
+          index += 1;
+        }
+      });
 
-    mesh.instanceMatrix.needsUpdate = true;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
   });
 
   return (
@@ -260,11 +312,13 @@ function MainMonitor({
   status,
   presence,
   tool,
+  command,
   reducedMotion,
 }: {
   status: AgentStatus;
   presence: PopiPresence;
   tool?: string | null;
+  command?: string | null;
   reducedMotion: boolean;
 }) {
   const glow = useRef<THREE.MeshStandardMaterial>(null);
@@ -288,6 +342,7 @@ function MainMonitor({
           status={status}
           presence={presence}
           tool={tool}
+          command={command}
           reducedMotion={reducedMotion}
         />
       </MonitorFrame>
@@ -488,15 +543,26 @@ export const Workstation = memo(function Workstation({
   presence = "online",
   reducedMotion = false,
   tool,
+  command,
+  turnSeq = 0,
+  visorMode = "auto",
+  probe,
 }: {
   spec: WorkstationSpec;
   status: AgentStatus;
   presence?: PopiPresence;
   reducedMotion?: boolean;
   tool?: string | null;
+  /** Live command/context string for the active tool, when there is one. */
+  command?: string | null;
+  turnSeq?: number;
+  visorMode?: VisorMode;
+  probe?: React.RefObject<PopiAnchorProbe>;
 }) {
-  const typing =
-    status === "WORKING" || status === "USING_TOOL" || status === "TERMINAL";
+  // Key feedback only ever runs for a real tool run, and each state has its own
+  // intensity so USING_TOOL reads as deliberate rather than as more typing.
+  const typingIntensity =
+    status === "WORKING" ? 1 : status === "TERMINAL" ? 1 : status === "USING_TOOL" ? 0.6 : 0;
 
   return (
     <group position={spec.position} rotation={[0, spec.rotationY, 0]}>
@@ -506,16 +572,20 @@ export const Workstation = memo(function Workstation({
         status={status}
         presence={presence}
         tool={tool}
+        command={command}
         reducedMotion={reducedMotion}
       />
       <SideMonitor status={status} presence={presence} />
-      <Keyboard typing={typing && !reducedMotion} />
+      <Keyboard typing={typingIntensity} />
       <DeskProps status={status} presence={presence} />
-      <group position={AGENT_OFFSET}>
+      <group position={POPI_AGENT_OFFSET}>
         <PopiAgent
           status={status}
           presence={presence}
           reducedMotion={reducedMotion}
+          turnSeq={turnSeq}
+          visorMode={visorMode}
+          probe={probe}
         />
       </group>
     </group>
