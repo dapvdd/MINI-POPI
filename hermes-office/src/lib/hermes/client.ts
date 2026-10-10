@@ -291,6 +291,16 @@ async submitPrompt(sessionId: string, prompt: string) {
   );
 }
 
+  async interruptSubagent(sessionId: string, subagentId: string) {
+    return this.request<{ found: boolean; subagent_id: string }>(
+      "subagent.interrupt",
+      {
+        session_id: sessionId,
+        subagent_id: subagentId,
+      },
+    );
+  }
+
   getState() {
     return this.state;
   }

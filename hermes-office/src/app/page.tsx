@@ -12,6 +12,12 @@ import {
   workersToArray,
   type WorkerState,
 } from "@/lib/hermes/workers";
+import {
+  describeInterruptError,
+  describeInterruptResult,
+  resolveInterruptAvailability,
+  type InterruptMessage,
+} from "@/lib/hermes/interrupt";
 import { getWorkerStatusVisual } from "@/lib/worker-visuals";
 import { getBodyColor } from "@/lib/popi";
 import { OfficeScene } from "@/components/office/OfficeScene";
@@ -142,6 +148,10 @@ export default function Home() {
     initialConversationState,
   );
   const [workers, setWorkers] = useState<WorkerState[]>([]);
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
+  const [interrupting, setInterrupting] = useState(false);
+  const [interruptMsg, setInterruptMsg] =
+    useState<InterruptMessage | null>(null);
 
   const syncedRef = useRef(false);
   const turnSeqRef = useRef(0);
@@ -427,6 +437,61 @@ export default function Home() {
     );
   }
 
+  /*
+   * Interrupt the selected worker through the official `subagent.interrupt`
+   * RPC. The result is never applied optimistically: on success the worker's
+   * real status arrives on the next `subagent.complete` SSE frame, and the
+   * `found: false` case is reported as stale rather than faked.
+   */
+  async function interruptWorker() {
+    if (!selectedWorker || interrupting) {
+      return;
+    }
+
+    if (!sessionId) {
+      setInterruptMsg({
+        tone: "error",
+        text: "No live session to interrupt.",
+      });
+      return;
+    }
+
+    setInterrupting(true);
+    setInterruptMsg(null);
+
+    try {
+      const response = await fetch(
+        "/api/hermes/subagent/interrupt",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: sessionId,
+            subagent_id: selectedWorker.id,
+          }),
+        },
+      );
+      const data = await readJson(response);
+
+      if (!response.ok || !data?.ok) {
+        throw new Error(data?.error ?? "Gagal menghentikan worker");
+      }
+
+      const result = data?.result;
+
+      if (!result || typeof result.found !== "boolean") {
+        throw new Error("Respon interrupt tidak valid");
+      }
+
+      setInterruptMsg(describeInterruptResult(result));
+    } catch (error) {
+      console.error("Failed to interrupt worker:", error);
+      setInterruptMsg(describeInterruptError(error));
+    } finally {
+      setInterrupting(false);
+    }
+  }
+
   /* =========================================================
      UI
   ========================================================= */
@@ -436,6 +501,18 @@ export default function Home() {
   const turnCount = conversation.messages.filter(
     (message) => message.role === "user",
   ).length;
+  const selectedWorker = selectedWorkerId
+    ? workers.find((worker) => worker.id === selectedWorkerId) ?? null
+    : null;
+  const interruptAvailability = selectedWorker
+    ? resolveInterruptAvailability({
+        hasSession: sessionId !== null,
+        status: selectedWorker.status,
+        gatewayConnected,
+        connectionError,
+        interrupting,
+      })
+    : { enabled: false, reason: null };
 
   return (
     <main className="flex min-h-dvh flex-col overflow-x-hidden bg-zinc-950 font-mono text-zinc-100 lg:h-dvh lg:overflow-hidden">
@@ -601,50 +678,156 @@ export default function Home() {
                   <ul className="space-y-1.5">
                     {workers.map((worker) => {
                       const visual = getWorkerStatusVisual(worker.status);
+                      const selected = worker.id === selectedWorkerId;
 
                       return (
-                        <li
-                          key={worker.id}
-                          data-worker-id={worker.id}
-                          className="rounded-lg border border-zinc-800 bg-zinc-950/50 px-2 py-1.5"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="flex min-w-0 items-center gap-1.5">
+                        <li key={worker.id} data-worker-id={worker.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedWorkerId(worker.id);
+                              setInterruptMsg(null);
+                            }}
+                            aria-pressed={selected}
+                            data-selected={selected}
+                            className={`w-full rounded-lg border px-2 py-1.5 text-left transition ${
+                              selected
+                                ? "border-zinc-500 bg-zinc-800/70"
+                                : "border-zinc-800 bg-zinc-950/50 hover:border-zinc-600"
+                            }`}
+                          >
+                            <span className="flex items-center justify-between gap-2">
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <span
+                                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                                  style={{
+                                    backgroundColor: visual.color,
+                                  }}
+                                />
+                                <span
+                                  className="truncate text-[11px] text-zinc-200"
+                                  title={worker.goal}
+                                >
+                                  {worker.goal || "untitled task"}
+                                </span>
+                              </span>
                               <span
-                                className="h-1.5 w-1.5 shrink-0 rounded-full"
-                                style={{
-                                  backgroundColor: visual.color,
-                                }}
-                              />
-                              <span
-                                className="truncate text-[11px] text-zinc-200"
-                                title={worker.goal}
+                                className="shrink-0 text-[10px] uppercase tracking-wide"
+                                style={{ color: visual.color }}
                               >
-                                {worker.goal || "untitled task"}
+                                {visual.label}
+                                {worker.taskCount > 1
+                                  ? ` · ${worker.taskIndex + 1}/${worker.taskCount}`
+                                  : ""}
                               </span>
                             </span>
-                            <span
-                              className="shrink-0 text-[10px] uppercase tracking-wide"
-                              style={{ color: visual.color }}
-                            >
-                              {visual.label}
-                              {worker.taskCount > 1
-                                ? ` · ${worker.taskIndex + 1}/${worker.taskCount}`
-                                : ""}
-                            </span>
-                          </div>
-                          {worker.activity ? (
-                            <div
-                              className="mt-0.5 truncate text-[10px] text-zinc-500"
-                              title={worker.activity}
-                            >
-                              {worker.activity}
-                            </div>
-                          ) : null}
+                            {worker.activity ? (
+                              <span
+                                className="mt-0.5 block truncate text-[10px] text-zinc-500"
+                                title={worker.activity}
+                              >
+                                {worker.activity}
+                              </span>
+                            ) : null}
+                          </button>
                         </li>
                       );
                     })}
                   </ul>
+
+                  {selectedWorker
+                    ? (() => {
+                        const visual = getWorkerStatusVisual(
+                          selectedWorker.status,
+                        );
+
+                        return (
+                          <div
+                            data-selected-worker-panel
+                            className="mt-2 rounded-lg border border-zinc-700 bg-zinc-900/60 p-2.5"
+                          >
+                            <div className="mb-1 flex items-center justify-between gap-2">
+                              <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
+                                Selected worker
+                              </span>
+                              <span
+                                className="shrink-0 text-[10px] uppercase tracking-wide"
+                                style={{ color: visual.color }}
+                              >
+                                {visual.label}
+                              </span>
+                            </div>
+
+                            <p
+                              className="truncate text-[11px] text-zinc-200"
+                              title={selectedWorker.goal}
+                            >
+                              {selectedWorker.goal || "untitled task"}
+                            </p>
+                            <p
+                              className="truncate text-[10px] text-zinc-500"
+                              title={selectedWorker.id}
+                            >
+                              {selectedWorker.id}
+                            </p>
+
+                            <button
+                              type="button"
+                              onClick={interruptWorker}
+                              disabled={!interruptAvailability.enabled}
+                              data-interrupt-button
+                              className="mt-2 w-full rounded-lg border border-red-600/50 bg-red-600/20 px-3 py-1.5 text-xs font-semibold text-red-300 transition enabled:hover:bg-red-600/30 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {interrupting
+                                ? "Interrupting…"
+                                : "Interrupt worker"}
+                            </button>
+
+                            {!interrupting &&
+                            interruptAvailability.reason ? (
+                              <p className="mt-1.5 text-[10px] leading-relaxed text-amber-400/90">
+                                {interruptAvailability.reason}
+                              </p>
+                            ) : null}
+
+                            {interruptMsg ? (
+                              <p
+                                data-interrupt-message
+                                data-tone={interruptMsg.tone}
+                                className={`mt-1.5 whitespace-pre-wrap break-words text-[10px] leading-relaxed ${
+                                  interruptMsg.tone === "error"
+                                    ? "text-red-300"
+                                    : interruptMsg.tone === "stale"
+                                      ? "text-amber-300"
+                                      : "text-emerald-300"
+                                }`}
+                              >
+                                {interruptMsg.text}
+                              </p>
+                            ) : null}
+                          </div>
+                        );
+                      })()
+                    : selectedWorkerId ? (
+                      <div
+                        data-stale-selected-worker
+                        className="mt-2 flex items-center justify-between gap-2 rounded-lg border border-amber-900/60 bg-amber-950/30 px-2.5 py-2 text-[10px] text-amber-300"
+                      >
+                        <span className="truncate" title={selectedWorkerId}>
+                          Selected worker {selectedWorkerId} left the roster.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedWorkerId(null);
+                            setInterruptMsg(null);
+                          }}
+                          className="shrink-0 rounded border border-amber-800/60 px-2 py-0.5 uppercase tracking-widest text-amber-200 transition hover:border-amber-600"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    ) : null}
                 </div>
               ) : null}
             </div>

@@ -54,3 +54,11 @@ export async function createHermesSession() {
     {},
   );
 }
+
+export async function interruptSubagent(sessionId: string, subagentId: string) {
+  const hermes = getHermesClient();
+
+  // Delegate to the single HermesClient so the request reuses the authenticated
+  // WebSocket (HERMES_SESSION_TOKEN) and never opens a second Gateway link.
+  return hermes.interruptSubagent(sessionId, subagentId);
+}
