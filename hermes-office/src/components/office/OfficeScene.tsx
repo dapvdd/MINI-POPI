@@ -24,12 +24,14 @@ import {
   OFFICE_PALETTE as C,
   POPI_WORKSTATION,
 } from "@/lib/office";
+import { atmosphereBreath, resolveAtmosphere, type RoomAtmosphere } from "@/lib/environment";
 import {
   selectRenderableWorkers,
   WORKER_TERMINAL_TTL_MS,
 } from "@/lib/worker-visuals";
 import { createBadgeTexture } from "./label-texture";
 import { OfficeRoom } from "./Room";
+import { ServerRack } from "./ServerRack";
 import { WorkerStation } from "./WorkerStation";
 import { Workstation } from "./Workstation";
 
@@ -163,6 +165,57 @@ function OverflowBadge({ count }: { count: number }) {
   );
 }
 
+/**
+ * Cyan rim + violet bounce. Both breathe on the shared atmosphere model, so an
+ * IDLE room drifts gently while WORKING/ERROR read as clearly livelier. Under
+ * reduced motion they hold a single static value.
+ */
+function StructuralLights({
+  atmosphere,
+  reducedMotion,
+}: {
+  atmosphere: RoomAtmosphere;
+  reducedMotion: boolean;
+}) {
+  const rim = useRef<THREE.PointLight>(null);
+  const fill = useRef<THREE.PointLight>(null);
+
+  useFrame((state) => {
+    const breath = reducedMotion
+      ? 1
+      : atmosphereBreath(atmosphere.mood, state.clock.elapsedTime);
+
+    if (rim.current) {
+      rim.current.intensity = atmosphere.rim * 3 * breath;
+    }
+
+    if (fill.current) {
+      fill.current.intensity = atmosphere.fill * 3.4 * breath;
+    }
+  });
+
+  return (
+    <>
+      <pointLight
+        ref={rim}
+        position={[2, 3.4, -4.6]}
+        intensity={atmosphere.rim * 3}
+        distance={21}
+        decay={2}
+        color={C.accent}
+      />
+      <pointLight
+        ref={fill}
+        position={[-6.2, 2.6, 2.4]}
+        intensity={atmosphere.fill * 3.4}
+        distance={17}
+        decay={2}
+        color={C.violet}
+      />
+    </>
+  );
+}
+
 function CameraRig({ focusDistance }: { focusDistance: number }) {
   const camera = useThree((state) => state.camera);
   const size = useThree((state) => state.size);
@@ -196,12 +249,15 @@ export function OfficeScene({
   sseConnected,
   gatewayConnected,
   connectionError,
+  tool,
 }: {
   status: AgentStatus;
   workers: WorkerState[];
   sseConnected: boolean;
   gatewayConnected: boolean;
   connectionError: GatewayErrorKind | null;
+  /** Live tool name when the agent is using one; drives the tool monitor. */
+  tool?: string | null;
 }) {
   const now = useRetentionNow();
   const reducedMotion = usePrefersReducedMotion();
@@ -214,6 +270,11 @@ export function OfficeScene({
         connectionError,
       }),
     [sseConnected, gatewayConnected, connectionError],
+  );
+
+  const atmosphere = useMemo(
+    () => resolveAtmosphere(status, presence),
+    [status, presence],
   );
 
   const visibleWorkers = useMemo(
@@ -245,12 +306,19 @@ export function OfficeScene({
   return (
     <>
       <color attach="background" args={[C.background]} />
-      <ambientLight intensity={0.5} />
-      <hemisphereLight args={["#3b4a6b", "#0b0b0f", 0.55]} />
+      {/* Depth haze: keeps the far wall from clipping flat against the sky. */}
+      <fog attach="fog" args={[C.background, 14, 34]} />
+
+      <ambientLight intensity={atmosphere.ambient} />
+      <hemisphereLight
+        args={["#24365c", "#070b14", atmosphere.hemisphere]}
+      />
+
+      {/* Key light — the only shadow caster. */}
       <directionalLight
         castShadow
         position={[6, 10, 5]}
-        intensity={1.9}
+        intensity={1.35}
         color="#dbeafe"
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -262,14 +330,30 @@ export function OfficeScene({
         shadow-camera-bottom={-16}
         shadow-bias={-0.0005}
       />
+
+      <StructuralLights atmosphere={atmosphere} reducedMotion={reducedMotion} />
+
+      {/* Cool fill so the right side never falls to mud. */}
+      <directionalLight
+        position={[-8, 5, 7]}
+        intensity={0.5}
+        color="#93c5fd"
+      />
+
       <StatusLight status={status} presence={presence} />
 
-      <OfficeRoom />
+      <OfficeRoom
+        status={status}
+        presence={presence}
+        reducedMotion={reducedMotion}
+      />
+      <ServerRack reducedMotion={reducedMotion} />
       <Workstation
         spec={POPI_WORKSTATION}
         status={status}
         presence={presence}
         reducedMotion={reducedMotion}
+        tool={tool}
       />
 
       {layout.assignments.map(({ workerId, spec }) => {

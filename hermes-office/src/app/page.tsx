@@ -558,6 +558,7 @@ export default function Home() {
               <OfficeScene
                 status={status}
                 workers={workers}
+                tool={tool === "-" ? null : tool}
                 sseConnected={connected}
                 gatewayConnected={gatewayConnected}
                 connectionError={connectionError}

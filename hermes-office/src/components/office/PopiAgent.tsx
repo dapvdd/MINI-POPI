@@ -12,6 +12,7 @@ import {
   type PopiPose,
   type PopiPresence,
 } from "@/lib/popi";
+import { OFFICE_PALETTE as C } from "@/lib/office";
 
 /**
  * Largest delta fed to the blend, so a hidden tab or a long frame cannot make
@@ -101,19 +102,69 @@ export function PopiAgent({
           <meshStandardMaterial color={bodyColor} roughness={0.5} />
         </mesh>
 
+        {/* Chest core — reads as the agent light from any angle. */}
+        <mesh position={[0, 0.86, 0.33]}>
+          <sphereGeometry args={[0.1, 14, 14]} />
+          <meshStandardMaterial
+            color={C.screenFrame}
+            emissive={bodyColor}
+            emissiveIntensity={1.3}
+          />
+        </mesh>
+        <mesh position={[0, 0.86, 0.37]}>
+          <ringGeometry args={[0.13, 0.16, 24]} />
+          <meshBasicMaterial color={bodyColor} transparent opacity={0.5} />
+        </mesh>
+
+        {/* Feet */}
+        {[-0.19, 0.19].map((x) => (
+          <mesh key={x} position={[x, 0.07, 0.1]} castShadow>
+            <sphereGeometry args={[0.12, 12, 12]} />
+            <meshStandardMaterial color={bodyColor} roughness={0.6} />
+          </mesh>
+        ))}
+
         <group ref={head} position={[0, 1.65, 0]}>
+          {/* Ears — the defining silhouette cue of the character. */}
+          {[-0.27, 0.27].map((x) => (
+            <mesh key={x} position={[x, 0.33, 0]} castShadow>
+              <coneGeometry args={[0.12, 0.3, 12]} />
+              <meshStandardMaterial color="#cbd5e1" roughness={0.6} />
+            </mesh>
+          ))}
+
           <mesh castShadow>
             <sphereGeometry args={[0.38, 24, 24]} />
             <meshStandardMaterial color="#e5e7eb" roughness={0.6} />
           </mesh>
 
+          {/* Soft face plate for a rounder, friendlier read. */}
+          <mesh position={[0, -0.04, 0.2]}>
+            <sphereGeometry args={[0.26, 18, 18]} />
+            <meshStandardMaterial color="#f1f5f9" roughness={0.55} />
+          </mesh>
+
           <mesh ref={eyeLeft} position={[-0.13, 0.03, 0.34]}>
-            <sphereGeometry args={[0.045, 12, 12]} />
+            <sphereGeometry args={[0.058, 12, 12]} />
             <meshStandardMaterial color="#111827" />
           </mesh>
           <mesh ref={eyeRight} position={[0.13, 0.03, 0.34]}>
-            <sphereGeometry args={[0.045, 12, 12]} />
+            <sphereGeometry args={[0.058, 12, 12]} />
             <meshStandardMaterial color="#111827" />
+          </mesh>
+
+          {/* Antenna with a lit tip */}
+          <mesh position={[0, 0.42, -0.05]}>
+            <cylinderGeometry args={[0.016, 0.016, 0.2, 8]} />
+            <meshStandardMaterial color={C.metalLight} metalness={0.5} />
+          </mesh>
+          <mesh position={[0, 0.55, -0.05]}>
+            <sphereGeometry args={[0.045, 12, 12]} />
+            <meshStandardMaterial
+              color={bodyColor}
+              emissive={bodyColor}
+              emissiveIntensity={0.9}
+            />
           </mesh>
         </group>
 
@@ -122,11 +173,19 @@ export function PopiAgent({
             <boxGeometry args={[0.16, 0.55, 0.16]} />
             <meshStandardMaterial color={bodyColor} roughness={0.5} />
           </mesh>
+          <mesh position={[0, -0.56, 0]} castShadow>
+            <sphereGeometry args={[0.1, 12, 12]} />
+            <meshStandardMaterial color={bodyColor} roughness={0.55} />
+          </mesh>
         </group>
         <group ref={armRight} position={[0.42, 1.05, 0]}>
           <mesh position={[0, -0.275, 0]} castShadow>
             <boxGeometry args={[0.16, 0.55, 0.16]} />
             <meshStandardMaterial color={bodyColor} roughness={0.5} />
+          </mesh>
+          <mesh position={[0, -0.56, 0]} castShadow>
+            <sphereGeometry args={[0.1, 12, 12]} />
+            <meshStandardMaterial color={bodyColor} roughness={0.55} />
           </mesh>
         </group>
       </group>

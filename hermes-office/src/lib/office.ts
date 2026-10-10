@@ -17,32 +17,133 @@ export interface WorkstationSpec {
   rotationY: number;
 }
 
+/**
+ * Dark navy / charcoal foundation with electric-cyan structure, one violet fill
+ * and a single warm amber family for life-like accents. Near-black values are
+ * deliberately avoided: every surface must stay readable against the key light.
+ */
 export const OFFICE_PALETTE = {
-  background: "#0b0b0f",
-  floor: "#1b1b21",
-  wall: "#212128",
-  wallTrim: "#33333d",
-  rug: "#181820",
-  desk: "#2f2f38",
-  deskEdge: "#41414d",
-  metal: "#26262e",
-  metalLight: "#3c3c47",
-  screenFrame: "#0a0a0e",
-  accent: "#60a5fa",
-  warm: "#f59e0b",
+  background: "#070b14",
+  floor: "#171d2b",
+  floorLine: "#22304a",
+  wall: "#1e2534",
+  wallPanel: "#26304a",
+  wallTrim: "#33415e",
+  rug: "#232b41",
+  desk: "#2a3247",
+  deskEdge: "#3b4767",
+  metal: "#1f2634",
+  metalLight: "#39435c",
+  screenFrame: "#080c14",
+  accent: "#22d3ee",
+  accentSoft: "#38bdf8",
+  violet: "#8b5cf6",
+  warm: "#fbbf24",
+  warmSoft: "#fcd34d",
   plant: "#34d399",
   plantDark: "#1f9d6b",
   mug: "#f472b6",
   paper: "#e4e4e7",
+  led: "#22d3ee",
+  steel: "#4b5a7a",
+  glass: "#0f172a",
 } as const;
+
+export type OfficePaletteKey = keyof typeof OFFICE_PALETTE;
 
 export const OFFICE_LAYOUT = {
   floor: { width: 24, depth: 16, center: [0, 0, 1] as Vec3 },
   backWallZ: -6,
   leftWallX: -8,
+  /** Enclosing wall on the open camera side, kept inside the floor edge. */
+  rightWallX: 11.6,
   wallHeight: 4.4,
   wallThickness: 0.3,
+  ceilingY: 4.4,
   rug: { width: 7.5, depth: 6, center: [0, 0, 1.4] as Vec3 },
+  /**
+   * Infrastructure zone. The rack is a compact unit sitting flush against the
+   * back wall in the open pocket left of Popi's desk, clear of every worker
+   * station row.
+   */
+  serverRack: {
+    position: [0.8, 0, -5.4] as Vec3,
+    size: [0.95, 2.1, 0.6] as Vec3,
+  },
+  /** Long window band on the left wall, well clear of every desk row. */
+  window: {
+    position: [-7.7, 2.2, 2.9] as Vec3,
+    size: [0.06, 2.6, 3.2] as Vec3,
+  },
+} as const;
+
+export type OfficeLayout = typeof OFFICE_LAYOUT;
+
+/* =========================================================
+   TECH DETAIL PLACEMENT
+   Prop positions that used to be scattered magic numbers.
+   Keeping them as data means the composition itself is
+   testable — a panel or rack shelf can be proven not to
+   collide with a workstation instead of being eyeballed.
+======================================================== */
+
+/** Decorative equipment bands on the back wall, left-to-right. */
+export const WALL_PANELS: ReadonlyArray<{
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}> = [
+  { x: -2.6, y: 2.5, width: 1.7, height: 1.5 },
+  { x: 0.4, y: 2.5, width: 2.4, height: 0.9 },
+  { x: 8.4, y: 2.5, width: 1.5, height: 1.1 },
+];
+
+/** Ceiling light bands along the room's length. */
+export const CEILING_BANDS: readonly number[] = [-3.4, 0.6, 4.6];
+
+/** Rack equipment geometry — mirrors the unit shelves in `ServerRack`. */
+export const SERVER_RACK_UNITS = 4;
+export const SERVER_RACK_LED_COLUMNS = 3;
+
+export interface ServerRackCell {
+  unit: number;
+  column: number;
+  /** Centre height of the unit shelf. */
+  y: number;
+  /** Local X of the LED within the rack chassis. */
+  ledX: number;
+}
+
+/**
+ * Equipment cells for the rack, derived from its declared size so the chassis
+ * and its contents can never drift apart.
+ */
+export function serverRackCells(): ServerRackCell[] {
+  const { size } = OFFICE_LAYOUT.serverRack;
+  const unitHeight = size[1] / SERVER_RACK_UNITS;
+  const cells: ServerRackCell[] = [];
+
+  for (let unit = 0; unit < SERVER_RACK_UNITS; unit += 1) {
+    for (let column = 0; column < SERVER_RACK_LED_COLUMNS; column += 1) {
+      cells.push({
+        unit,
+        column,
+        y: (unit + 0.5) * unitHeight,
+        ledX: -size[0] / 2 + 0.14 + column * 0.13,
+      });
+    }
+  }
+
+  return cells;
+}
+
+/** Popi's desk footprint, used to keep new props clear of her workspace. */
+export const POPI_DESK_BOUNDS = {
+  minX: -2,
+  maxX: 2,
+  minZ: -1,
+  maxZ: 0.6,
 } as const;
 
 /** Popi's station sits at the world origin and anchors the scene. */
