@@ -130,6 +130,9 @@ export function mapEventToState(
   // Delegated subagents are application state, not tool chrome: route every
   // subagent.* frame through the worker adapter without touching agent status.
   if (event.type.startsWith("subagent.")) {
+    if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+      console.log("[WORKER-EVENT]", event.type, payload);
+    }
     const workers = applyWorkerEvent(current.workers, {
       type: event.type,
       payload,
