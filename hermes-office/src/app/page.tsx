@@ -635,6 +635,8 @@ export default function Home() {
                 sseConnected={connected}
                 gatewayConnected={gatewayConnected}
                 connectionError={connectionError}
+                selectedWorkerId={selectedWorkerId}
+                onSelectWorker={setSelectedWorkerId}
               />
             </Canvas>
 

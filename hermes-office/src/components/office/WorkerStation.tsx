@@ -11,6 +11,7 @@ import {
 } from "@/lib/worker-visuals";
 import { createWorkerLabelTexture } from "./label-texture";
 import { OFFICE_PALETTE as C, type WorkstationSpec } from "@/lib/office";
+import type { ThreeEvent } from "@react-three/fiber";
 
 const BOT_OFFSET: [number, number, number] = [0, 0, 0.95];
 
@@ -308,17 +309,31 @@ export const WorkerStation = memo(function WorkerStation({
   spec,
   worker,
   reducedMotion = false,
+  selected = false,
+  onSelect,
 }: {
   spec: WorkstationSpec;
   worker: WorkerState;
   reducedMotion?: boolean;
+  selected?: boolean;
+  onSelect?: (workerId: string) => void;
 }) {
   const visual = getWorkerStatusVisual(worker.status);
+  const handleClick = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    onSelect?.(worker.id);
+  };
 
   return (
-    <group position={spec.position} rotation={[0, spec.rotationY, 0]}>
+    <group position={spec.position} rotation={[0, spec.rotationY, 0]} onClick={handleClick}>
       <WorkerDesk />
       <WorkerMonitor color={visual.color} active={visual.active} />
+      {selected ? (
+        <mesh position={[0, 0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[3.2, 3.4, 32]} />
+          <meshBasicMaterial color="#22d3ee" transparent opacity={0.6} />
+        </mesh>
+      ) : null}
       <WorkerStool />
       <group position={BOT_OFFSET}>
         <WorkerBot

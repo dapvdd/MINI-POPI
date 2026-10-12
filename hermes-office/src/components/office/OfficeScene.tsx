@@ -259,7 +259,7 @@ function CeilingLights({
   );
 }
 
-function CameraRig({ focusDistance }: { focusDistance: number }) {
+function CameraRig({ focusDistance, targetOverride }: { focusDistance: number; targetOverride?: [number, number, number] | null }) {
   const camera = useThree((state) => state.camera);
   const size = useThree((state) => state.size);
   const controls = useThree((state) => state.controls) as unknown as
@@ -272,18 +272,18 @@ function CameraRig({ focusDistance }: { focusDistance: number }) {
     // character has to stay inside the shorter axis.
     const aspectDistance = aspect < 1 ? 9.8 : aspect < 1.5 ? 8.6 : 7.2;
     const distance = Math.max(aspectDistance, focusDistance);
-    const target = new THREE.Vector3(...CAMERA_TARGET);
+    const targetPos = targetOverride ? new THREE.Vector3(...targetOverride) : new THREE.Vector3(...CAMERA_TARGET);
 
     camera.position
-      .copy(target)
+      .copy(targetPos)
       .addScaledVector(CAMERA_DIRECTION, distance);
-    camera.lookAt(target);
+    camera.lookAt(targetPos);
 
     if (controls) {
-      controls.target.copy(target);
+      controls.target.copy(targetPos);
       controls.update();
     }
-  }, [camera, size, controls, focusDistance]);
+  }, [camera, size, controls, focusDistance, targetOverride]);
 
   return null;
 }
@@ -312,7 +312,10 @@ export function OfficeScene({
   turnSeq?: number;
   visorMode?: VisorMode;
   probe?: React.RefObject<PopiAnchorProbe>;
+  selectedWorkerId?: string | null;
+  onSelectWorker?: (workerId: string | null) => void;
 }) {
+  const { selectedWorkerId = null, onSelectWorker } = { selectedWorkerId: undefined, onSelectWorker: undefined, ...arguments[0] };
   const now = useRetentionNow();
   const reducedMotion = usePrefersReducedMotion();
 
@@ -437,6 +440,8 @@ export function OfficeScene({
             spec={spec}
             worker={worker}
             reducedMotion={reducedMotion}
+            selected={selectedWorkerId === workerId}
+            onSelect={onSelectWorker}
           />
         ) : null;
       })}
@@ -447,7 +452,16 @@ export function OfficeScene({
 
       {probe ? <PopiScreenAnchor probe={probe} /> : null}
 
-      <CameraRig focusDistance={focusDistance} />
+      <CameraRig
+        focusDistance={focusDistance}
+        targetOverride={selectedWorkerId ? (() => {
+          const found = layout.assignments.find((a) => a.workerId === selectedWorkerId);
+          if (found) {
+            return [found.spec.position[0], 1.45, found.spec.position[2] + 0.7] as [number, number, number];
+          }
+          return null;
+        })() : null}
+      />
       <OrbitControls
         makeDefault
         enablePan={false}
