@@ -99,7 +99,18 @@ export function isTerminalWorkerStatus(status: WorkerStatus): boolean {
 }
 
 export function isWorkerEventType(type: string): boolean {
-  return WORKER_EVENT_TYPES.has(type);
+  if (WORKER_EVENT_TYPES.has(type)) return true;
+  // Common alternative naming conventions
+  const alt = [
+    "subagent.spawned",
+    "subagent.spawn",
+    "subagent.started",
+    "subagent.completed",
+    "subagent.failed",
+    "subagent.error",
+    "subagent.interrupted",
+  ];
+  return alt.includes(type);
 }
 
 function readString(value: unknown): string | null {
@@ -323,11 +334,14 @@ export function applyWorkerEvent(
 
   switch (type) {
     case "subagent.spawn_requested":
+    case "subagent.spawned":
+    case "subagent.spawn":
       next.status = "queued";
       next.activity = next.activity ?? (next.goal || null);
       break;
 
     case "subagent.start":
+    case "subagent.started":
       next.status = "running";
       next.startedAt = base.startedAt ?? now;
       next.activity = readString(payload.text) ?? (next.goal || null);
@@ -353,6 +367,7 @@ export function applyWorkerEvent(
       break;
 
     case "subagent.complete":
+    case "subagent.completed":
       next.status = readWorkerStatus(payload.status, "completed");
       next.summary =
         readString(payload.summary) ??
