@@ -288,18 +288,7 @@ function CameraRig({ focusDistance, targetOverride }: { focusDistance: number; t
   return null;
 }
 
-export function OfficeScene({
-  status,
-  workers,
-  sseConnected,
-  gatewayConnected,
-  connectionError,
-  tool,
-  command,
-  turnSeq = 0,
-  visorMode = "auto",
-  probe,
-}: {
+export interface OfficeSceneProps {
   status: AgentStatus;
   workers: WorkerState[];
   sseConnected: boolean;
@@ -314,9 +303,22 @@ export function OfficeScene({
   probe?: React.RefObject<PopiAnchorProbe>;
   selectedWorkerId?: string | null;
   onSelectWorker?: (workerId: string | null) => void;
-}) {
-  const { selectedWorkerId = null, onSelectWorker } = { ...({} as any), ...arguments[0] };
-  // eslint-disable-next-line prefer-rest-params
+}
+
+export function OfficeScene({
+  status,
+  workers,
+  sseConnected,
+  gatewayConnected,
+  connectionError,
+  tool,
+  command,
+  turnSeq = 0,
+  visorMode = "auto",
+  probe,
+  selectedWorkerId = null,
+  onSelectWorker,
+}: OfficeSceneProps) {
   const now = useRetentionNow();
   const reducedMotion = usePrefersReducedMotion();
 
