@@ -30,6 +30,7 @@ import {
   useSpeechBubble,
 } from "@/components/office/PopiSpeechBubble";
 import { usePrefersReducedMotion } from "@/components/office/use-prefers-reduced-motion";
+import { RuntimeControl } from "@/components/RuntimeControl";
 
 
 /* =========================================================
@@ -603,6 +604,7 @@ export default function Home() {
           <StatusBadge status={status} />
           <LinkBadge label="Gateway" online={gatewayConnected} />
           <LinkBadge label="SSE" online={connected} />
+          <RuntimeControl />
         </div>
       </header>
 
