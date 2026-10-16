@@ -215,6 +215,63 @@ describe("applyWorkerEvent", () => {
     }
   });
 
+  it.each([
+    ["subagent.failed", "failed"],
+    ["subagent.error", "error"],
+    ["subagent.interrupted", "interrupted"],
+  ] as const)("maps %s to %s with completedAt", (type, status) => {
+    const state = apply(
+      {},
+      type,
+      { ...base, message: `${status} detail` },
+      250,
+    );
+    const worker = state["sa-0-abcd1234"];
+
+    expect(worker.status).toBe(status);
+    expect(worker.completedAt).toBe(250);
+    expect(worker.startedAt).toBe(250);
+    expect(worker.summary).toBe(`${status} detail`);
+    expect(isTerminalWorkerStatus(worker.status)).toBe(true);
+  });
+
+  it("accepts a complete status alias but not an unknown status", () => {
+    const complete = apply(
+      {},
+      "subagent.complete",
+      { ...base, status: "complete" },
+      200,
+    );
+    expect(complete["sa-0-abcd1234"].status).toBe("completed");
+
+    const unknown = apply(
+      {},
+      "subagent.complete",
+      { ...base, status: "finished" },
+      200,
+    );
+    expect(unknown["sa-0-abcd1234"].status).toBe("completed");
+  });
+
+  it("does not let a late completion mutate a terminal worker", () => {
+    const failed = apply(
+      {},
+      "subagent.failed",
+      { ...base, message: "failed first" },
+      200,
+    );
+    const late = apply(
+      failed,
+      "subagent.complete",
+      { ...base, status: "completed", summary: "late completion" },
+      300,
+    );
+
+    expect(late).toBe(failed);
+    expect(late["sa-0-abcd1234"].status).toBe("failed");
+    expect(late["sa-0-abcd1234"].completedAt).toBe(200);
+  });
+
   it("ignores unrelated subagent event types", () => {
     const state = apply(
       {},
@@ -246,6 +303,9 @@ describe("applyWorkerEvent", () => {
   it("recognises only the real subagent lifecycle event names", () => {
     expect(isWorkerEventType("subagent.start")).toBe(true);
     expect(isWorkerEventType("subagent.complete")).toBe(true);
+    expect(isWorkerEventType("subagent.failed")).toBe(true);
+    expect(isWorkerEventType("subagent.error")).toBe(true);
+    expect(isWorkerEventType("subagent.interrupted")).toBe(true);
     expect(isWorkerEventType("subagent.text")).toBe(false);
     expect(isWorkerEventType("tool.start")).toBe(false);
   });

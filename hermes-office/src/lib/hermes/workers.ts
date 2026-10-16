@@ -105,10 +105,10 @@ export function isWorkerEventType(type: string): boolean {
     "subagent.spawned",
     "subagent.spawn",
     "subagent.started",
-    "subagent.completed",
-    "subagent.failed",
-    "subagent.error",
-    "subagent.interrupted",
+  "subagent.completed",
+  "subagent.failed",
+  "subagent.error",
+  "subagent.interrupted",
   ];
   return alt.includes(type);
 }
@@ -186,6 +186,8 @@ function readWorkerStatus(
   fallback: WorkerStatus,
 ): WorkerStatus {
   switch (value) {
+    case "complete":
+      return "completed";
     case "queued":
       return "queued";
     case "running":
@@ -323,8 +325,7 @@ export function applyWorkerEvent(
   // A finished worker is not resurrected by a late/duplicate lifecycle frame.
   if (
     existing &&
-    isTerminalWorkerStatus(existing.status) &&
-    type !== "subagent.complete"
+    isTerminalWorkerStatus(existing.status)
   ) {
     return current;
   }
@@ -375,6 +376,44 @@ export function applyWorkerEvent(
         base.summary;
       next.durationSeconds =
         readNumber(payload.duration_seconds) ?? base.durationSeconds;
+      next.activity = next.summary ?? base.activity;
+      next.startedAt = base.startedAt ?? now;
+      next.completedAt = now;
+      break;
+
+    case "subagent.failed":
+      next.status = readWorkerStatus(payload.status, "failed");
+      next.summary =
+        readString(payload.summary) ??
+        readString(payload.error) ??
+        readString(payload.message) ??
+        readString(payload.text) ??
+        base.summary;
+      next.activity = next.summary ?? base.activity;
+      next.startedAt = base.startedAt ?? now;
+      next.completedAt = now;
+      break;
+
+    case "subagent.error":
+      next.status = readWorkerStatus(payload.status, "error");
+      next.summary =
+        readString(payload.summary) ??
+        readString(payload.error) ??
+        readString(payload.message) ??
+        readString(payload.text) ??
+        base.summary;
+      next.activity = next.summary ?? base.activity;
+      next.startedAt = base.startedAt ?? now;
+      next.completedAt = now;
+      break;
+
+    case "subagent.interrupted":
+      next.status = readWorkerStatus(payload.status, "interrupted");
+      next.summary =
+        readString(payload.summary) ??
+        readString(payload.message) ??
+        readString(payload.text) ??
+        base.summary;
       next.activity = next.summary ?? base.activity;
       next.startedAt = base.startedAt ?? now;
       next.completedAt = now;
