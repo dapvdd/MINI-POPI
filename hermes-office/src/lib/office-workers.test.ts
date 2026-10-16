@@ -4,6 +4,7 @@ import {
   mergeOfficeWorkers,
   officeWorkerKindLabel,
   officeWorkerTitle,
+  resolveWorkerZoneId,
   runtimeAccent,
   selectOfficeRenderable,
   toRuntimeWorkersFromHermes,
@@ -169,5 +170,16 @@ describe("office worker model", () => {
 
   it("exposes distinct runtime accents", () => {
     expect(runtimeAccent("hermes")).not.toBe(runtimeAccent("opencode"));
+  });
+
+  it("resolves zone id according to runtime", () => {
+    expect(resolveWorkerZoneId(sessionWorker("s1"))).toBe("workspace");
+    expect(
+      resolveWorkerZoneId({
+        ...sessionWorker("s1"),
+        runtime: "hermes",
+        kind: "worker",
+      }),
+    ).toBe("primary");
   });
 });

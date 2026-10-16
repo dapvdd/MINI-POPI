@@ -12,6 +12,8 @@
  * completes (`turnSeq`), independent of how many prompts are queued.
  */
 
+import type { RuntimeId } from "./runtime/types";
+
 export type ChatRole = "user" | "assistant";
 
 export type ChatStatus = "pending" | "complete" | "error";
@@ -21,6 +23,7 @@ export interface ChatMessage {
   role: ChatRole;
   text: string;
   status: ChatStatus;
+  runtime?: RuntimeId;
 }
 
 export interface ConversationState {
@@ -44,13 +47,20 @@ export const initialConversationState: ConversationState = {
 
 export type ConversationAction =
   | { type: "sync-turn-seq"; turnSeq: number }
-  | { type: "user-submitted"; text: string }
+  | { type: "user-submitted"; text: string; runtime?: RuntimeId }
   | {
       type: "turn-completed";
       turnSeq: number;
       text: string | null;
       fallback: string | null;
       failed: boolean;
+    }
+  | {
+      type: "direct-response";
+      runtime: RuntimeId;
+      userText: string;
+      assistantText: string;
+      failed?: boolean;
     }
   | { type: "submit-failed"; message: string }
   | { type: "gateway-lost" };
@@ -72,6 +82,7 @@ export function conversationReducer(
     case "user-submitted": {
       const userId = state.nextId;
       const assistantId = userId + 1;
+      const runtime = action.runtime ?? "hermes";
 
       return {
         ...state,
@@ -79,12 +90,34 @@ export function conversationReducer(
         pendingIds: [...state.pendingIds, assistantId],
         messages: [
           ...state.messages,
-          { id: userId, role: "user", text: action.text, status: "complete" },
+          { id: userId, role: "user", text: action.text, status: "complete", runtime },
           {
             id: assistantId,
             role: "assistant",
             text: "",
             status: "pending",
+            runtime,
+          },
+        ],
+      };
+    }
+
+    case "direct-response": {
+      const userId = state.nextId;
+      const assistantId = userId + 1;
+
+      return {
+        ...state,
+        nextId: assistantId + 1,
+        messages: [
+          ...state.messages,
+          { id: userId, role: "user", text: action.userText, status: "complete", runtime: action.runtime },
+          {
+            id: assistantId,
+            role: "assistant",
+            text: action.assistantText,
+            status: action.failed ? "error" : "complete",
+            runtime: action.runtime,
           },
         ],
       };

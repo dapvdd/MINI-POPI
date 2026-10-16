@@ -32,4 +32,27 @@ describe("getComposerState", () => {
       getComposerState({ ...available, sending: true, hasPrompt: true }),
     ).toEqual({ canSend: false, hint: "Sending prompt..." });
   });
+
+  it("handles OpenCode runtime targeting correctly", () => {
+    expect(
+      getComposerState({
+        ...available,
+        runtime: "opencode",
+        opencodeOnline: false,
+        hasPrompt: true,
+      }),
+    ).toEqual({ canSend: false, hint: "OpenCode service is offline" });
+
+    expect(
+      getComposerState({
+        ...available,
+        runtime: "opencode",
+        opencodeOnline: true,
+        hasPrompt: true,
+      }),
+    ).toEqual({
+      canSend: true,
+      hint: "Enter to send to OpenCode · Shift+Enter for newline",
+    });
+  });
 });

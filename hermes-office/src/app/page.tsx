@@ -13,7 +13,7 @@ import {
   workersToArray,
   type WorkerState,
 } from "@/lib/hermes/workers";
-import type { RuntimeWorker } from "@/lib/runtime/types";
+import type { RuntimeId, RuntimeWorker } from "@/lib/runtime/types";
 import {
   mergeOfficeWorkers,
   officeWorkerKindLabel,
@@ -22,11 +22,12 @@ import {
   runtimeLabel,
 } from "@/lib/office-workers";
 import {
-  describeInterruptError,
-  describeInterruptResult,
-  resolveInterruptAvailability,
+  describeUnifiedInterruptError as describeInterruptError,
+  describeUnifiedInterruptResult as describeInterruptResult,
+  resolveUnifiedWorkerInterruptAvailability,
   type InterruptMessage,
-} from "@/lib/hermes/interrupt";
+} from "@/lib/runtime/interrupt";
+import { toFormattedOfficeEvent } from "@/lib/runtime/events";
 import { getWorkerStatusVisual } from "@/lib/worker-visuals";
 import { getBodyColor } from "@/lib/popi";
 import type { VisorMode } from "@/lib/popi-behavior";
@@ -170,6 +171,8 @@ export default function Home() {
   const [runtimeLive, setRuntimeLive] = useState<Record<string, boolean>>({});
   const [officeWorkers, setOfficeWorkers] = useState<RuntimeWorker[]>([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
+  const [targetRuntime, setTargetRuntime] = useState<RuntimeId>("hermes");
+  const [opencodeSessionId, setOpencodeSessionId] = useState<string | null>(null);
   const [interrupting, setInterrupting] = useState(false);
   const [interruptMsg, setInterruptMsg] =
     useState<InterruptMessage | null>(null);
@@ -432,6 +435,59 @@ export default function Home() {
   }, [hermesWorkers, runtimeWorkers, runtimeLive, connected]);
 
   /* =========================================================
+     MULTI-RUNTIME EVENT STREAM (Phase M)
+     Subscribes to /api/runtimes/events to display unified
+     events from both Hermes and OpenCode.
+  ========================================================= */
+  useEffect(() => {
+    let source: EventSource | null = null;
+    let disposed = false;
+    let retryTimer: number | null = null;
+    let retryDelay = 2000;
+
+    function open() {
+      if (disposed) return;
+      source?.close();
+
+      const es = new EventSource("/api/runtimes/events");
+      source = es;
+
+      es.onopen = () => {
+        retryDelay = 2000;
+      };
+
+      es.onmessage = (event) => {
+        try {
+          const envelope = JSON.parse(event.data);
+          if (envelope.type === "runtime.event" && envelope.payload) {
+            const formatted = toFormattedOfficeEvent(envelope.payload);
+            setEvents((prev) => [formatted.text, ...prev].slice(0, 30));
+          }
+        } catch {
+          // ignore heartbeat / unparseable
+        }
+      };
+
+      es.onerror = () => {
+        if (disposed) return;
+        es.close();
+        if (source === es) source = null;
+        retryTimer = window.setTimeout(open, retryDelay);
+        retryDelay = Math.min(retryDelay * 2, 15000);
+      };
+    }
+
+    open();
+
+    return () => {
+      disposed = true;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      source?.close();
+      source = null;
+    };
+  }, []);
+
+  /* =========================================================
      SEND TO BRIDGE
   ========================================================= */
 
@@ -469,11 +525,68 @@ export default function Home() {
 
   async function sendPrompt(text: string) {
     const clean = text.trim();
-    if (!clean || sending || !connected || !gatewayConnected) return;
+    if (!clean || sending) return;
+
+    if (targetRuntime === "opencode") {
+      setSending(true);
+      setSubmitError(null);
+      dispatchConversation({ type: "user-submitted", text: clean, runtime: "opencode" });
+
+      try {
+        let ocSessionId = opencodeSessionId;
+        if (!ocSessionId) {
+          if (selectedWorker?.runtime === "opencode") {
+            ocSessionId = selectedWorker.sourceId;
+          } else {
+            const listRes = await fetch("/api/runtimes/sessions?runtime=opencode", { cache: "no-store" });
+            const listJson = await readJson(listRes);
+            const first = listJson?.sessions?.[0]?.sourceId;
+            if (first) {
+              ocSessionId = String(first);
+            } else {
+              throw new Error("No active OpenCode session found. Start a session in OpenCode first.");
+            }
+          }
+          setOpencodeSessionId(ocSessionId);
+        }
+
+        const promptRes = await fetch(
+          `/api/runtimes/sessions/opencode/${encodeURIComponent(ocSessionId)}/prompt`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: clean }),
+          },
+        );
+        const promptJson = await readJson(promptRes);
+        if (!promptRes.ok || !promptJson?.ok) {
+          throw new Error(promptJson?.error ?? "Failed to send prompt to OpenCode");
+        }
+
+        dispatchConversation({
+          type: "turn-completed",
+          turnSeq: turnSeq + 1,
+          text: `Task dispatched to OpenCode (session ${ocSessionId.slice(0, 8)}).`,
+          fallback: null,
+          failed: false,
+        });
+        setPrompt("");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to send prompt to OpenCode";
+        console.error("Failed to send prompt to OpenCode:", error);
+        dispatchConversation({ type: "submit-failed", message });
+        setSubmitError(message);
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
+    if (!connected || !gatewayConnected) return;
 
     setSending(true);
     setSubmitError(null);
-    dispatchConversation({ type: "user-submitted", text: clean });
+    dispatchConversation({ type: "user-submitted", text: clean, runtime: "hermes" });
 
     try {
       let currentSessionId = await ensureSession();
@@ -539,30 +652,17 @@ export default function Home() {
     );
   }
 
+  const selectedWorker = selectedWorkerId
+    ? officeWorkers.find((worker) => worker.id === selectedWorkerId) ?? null
+    : null;
+
   /*
-   * Interrupt the selected worker through the official `subagent.interrupt`
-   * RPC. The result is never applied optimistically: on success the worker's
-   * real status arrives on the next `subagent.complete` SSE frame, and the
-   * `found: false` case is reported as stale rather than faked.
+   * Unified cross-runtime interrupt (Phase M).
+   * Dispatches via /api/runtimes/interrupt for both Hermes subagents
+   * and OpenCode running sessions.
    */
   async function interruptWorker() {
     if (!selectedWorker || interrupting) {
-      return;
-    }
-
-    if (!interruptibleHermesWorker) {
-      setInterruptMsg({
-        tone: "error",
-        text: `Interrupt is unavailable for this ${runtimeLabel(selectedWorker.runtime)} ${officeWorkerKindLabel(selectedWorker)}.`,
-      });
-      return;
-    }
-
-    if (!sessionId) {
-      setInterruptMsg({
-        tone: "error",
-        text: "No live session to interrupt.",
-      });
       return;
     }
 
@@ -570,34 +670,36 @@ export default function Home() {
     setInterruptMsg(null);
 
     try {
-      const response = await fetch(
-        "/api/hermes/subagent/interrupt",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            session_id: sessionId,
-            // Source-level subagent id, never the composite office id.
-            subagent_id: selectedWorker.sourceId,
-          }),
-        },
-      );
+      const response = await fetch("/api/runtimes/interrupt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedWorker.id,
+          runtime: selectedWorker.runtime,
+          sessionId:
+            selectedWorker.sessionId ??
+            (selectedWorker.runtime === "hermes" ? sessionId : selectedWorker.sourceId),
+          workerId: selectedWorker.sourceId,
+        }),
+      });
       const data = await readJson(response);
 
       if (!response.ok || !data?.ok) {
-        throw new Error(data?.error ?? "Gagal menghentikan worker");
+        throw new Error(data?.error ?? "Failed to interrupt worker");
       }
 
-      const result = data?.result;
-
-      if (!result || typeof result.found !== "boolean") {
-        throw new Error("Respon interrupt tidak valid");
-      }
-
-      setInterruptMsg(describeInterruptResult(result));
+      setInterruptMsg(
+        describeInterruptResult({
+          ok: true,
+          runtime: selectedWorker.runtime,
+          found: typeof data.found === "boolean" ? data.found : true,
+          interrupted: typeof data.interrupted === "boolean" ? data.interrupted : true,
+          sourceId: selectedWorker.sourceId,
+        }),
+      );
     } catch (error) {
       console.error("Failed to interrupt worker:", error);
-      setInterruptMsg(describeInterruptError(error));
+      setInterruptMsg(describeInterruptError(error, selectedWorker.runtime));
     } finally {
       setInterrupting(false);
     }
@@ -613,6 +715,8 @@ export default function Home() {
     gatewayConnected,
     sending: busy,
     hasPrompt: prompt.trim().length > 0,
+    runtime: targetRuntime,
+    opencodeOnline: Boolean(runtimeLive.opencode),
   });
   const turnCount = conversation.messages.filter(
     (message) => message.role === "user",
@@ -656,35 +760,17 @@ export default function Home() {
   }, [sessionId, pendingMessage, turnSeq, latestReply]);
 
   const bubbleMessage = useSpeechBubble(bubbleInput);
-  const selectedWorker = selectedWorkerId
-    ? officeWorkers.find((worker) => worker.id === selectedWorkerId) ?? null
-    : null;
-
-  /*
-   * Only Hermes subagent workers are interruptible from the office: the
-   * Gateway's `subagent.interrupt` RPC is the only verified cancel path, and it
-   * targets a source-level subagent id. OpenCode session workers have no such
-   * contract exposed here, so the control is visibly unavailable rather than
-   * silently misfiring across runtime/session boundaries.
-   */
-  const interruptibleHermesWorker =
-    selectedWorker !== null &&
-    selectedWorker.runtime === "hermes" &&
-    selectedWorker.kind !== "session";
 
   const interruptAvailability = selectedWorker
-    ? interruptibleHermesWorker
-      ? resolveInterruptAvailability({
-          hasSession: sessionId !== null,
-          status: selectedWorker.status,
-          gatewayConnected,
-          connectionError,
-          interrupting,
-        })
-      : {
-          enabled: false,
-          reason: `Interrupt is only available for Hermes subagent workers. This is a ${runtimeLabel(selectedWorker.runtime)} ${officeWorkerKindLabel(selectedWorker)}, so cancellation is unavailable.`,
-        }
+    ? resolveUnifiedWorkerInterruptAvailability({
+        worker: selectedWorker,
+        runtimeOnline:
+          selectedWorker.runtime === "hermes"
+            ? gatewayConnected
+            : Boolean(runtimeLive.opencode),
+        interrupting,
+        hasSession: sessionId !== null,
+      })
     : { enabled: false, reason: null };
 
   return (
@@ -697,10 +783,10 @@ export default function Home() {
           </span>
           <div className="min-w-0">
             <h1 className="truncate text-sm font-bold tracking-wide">
-              HERMES VIRTUAL OFFICE
+              LIVING AI OFFICE
             </h1>
             <p className="truncate text-[11px] text-zinc-500">
-              MINPOP · observation &amp; control for Hermes
+              MINPOP · multi-runtime observation &amp; control
             </p>
           </div>
         </div>
@@ -1060,6 +1146,19 @@ export default function Home() {
                               </dd>
                             </dl>
 
+                            {selectedWorker.runtime === "opencode" ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTargetRuntime("opencode");
+                                  setOpencodeSessionId(selectedWorker.sourceId);
+                                }}
+                                className="mt-2 w-full rounded-lg border border-purple-500/40 bg-purple-500/15 px-3 py-1 text-xs font-semibold text-purple-300 transition hover:bg-purple-500/25"
+                              >
+                                Target session in Composer
+                              </button>
+                            ) : null}
+
                             <button
                               type="button"
                               onClick={interruptWorker}
@@ -1142,7 +1241,7 @@ export default function Home() {
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2 text-xs">
               {events.length === 0 ? (
                 <p className="text-zinc-600">
-                  Waiting for Hermes events…
+                  Waiting for runtime events…
                 </p>
               ) : (
                 events.map((event, index) => (
@@ -1225,17 +1324,21 @@ export default function Home() {
                         className={`max-w-[85%] rounded-2xl rounded-bl-sm border px-3 py-2 ${
                           message.status === "error"
                             ? "border-red-500/40 bg-red-500/10"
-                            : "border-emerald-500/30 bg-emerald-500/10"
+                            : message.runtime === "opencode"
+                              ? "border-purple-500/40 bg-purple-500/10"
+                              : "border-emerald-500/30 bg-emerald-500/10"
                         }`}
                       >
                         <div
-                          className={`mb-1 text-[10px] font-semibold uppercase tracking-widest ${
+                          className={`mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest ${
                             message.status === "error"
                               ? "text-red-400/80"
-                              : "text-emerald-400/80"
+                              : message.runtime === "opencode"
+                                ? "text-purple-400"
+                                : "text-emerald-400/80"
                           }`}
                         >
-                          Hermes
+                          <span>{message.runtime === "opencode" ? "OpenCode" : "Hermes"}</span>
                         </div>
                         {message.status === "pending" ? (
                           <div className="flex items-center gap-2 text-sm italic text-zinc-500">
@@ -1247,7 +1350,9 @@ export default function Home() {
                             className={`whitespace-pre-wrap break-words text-sm leading-relaxed ${
                               message.status === "error"
                                 ? "text-red-200"
-                                : "text-emerald-100"
+                                : message.runtime === "opencode"
+                                  ? "text-purple-100"
+                                  : "text-emerald-100"
                             }`}
                           >
                             {message.text}
@@ -1269,6 +1374,42 @@ export default function Home() {
               </div>
             ) : null}
 
+            {/* RUNTIME TARGET SELECTOR (Phase M) */}
+            <div className="flex items-center justify-between gap-2 text-[10px]">
+              <div className="flex items-center gap-1.5">
+                <span className="uppercase tracking-widest text-zinc-500">Target:</span>
+                <button
+                  type="button"
+                  onClick={() => setTargetRuntime("hermes")}
+                  data-runtime-target="hermes"
+                  className={`rounded px-2 py-0.5 uppercase tracking-wider transition ${
+                    targetRuntime === "hermes"
+                      ? "border border-cyan-400/60 bg-cyan-400/15 text-cyan-200"
+                      : "border border-zinc-800 bg-zinc-900 text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  Hermes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetRuntime("opencode")}
+                  data-runtime-target="opencode"
+                  className={`rounded px-2 py-0.5 uppercase tracking-wider transition ${
+                    targetRuntime === "opencode"
+                      ? "border border-purple-400/60 bg-purple-400/15 text-purple-200"
+                      : "border border-zinc-800 bg-zinc-900 text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  OpenCode
+                </button>
+              </div>
+              {targetRuntime === "opencode" && opencodeSessionId ? (
+                <span className="truncate text-zinc-400">
+                  Session: {opencodeSessionId.slice(0, 8)}
+                </span>
+              ) : null}
+            </div>
+
             <div className="flex items-end gap-2">
               <textarea
                 value={prompt}
@@ -1280,14 +1421,22 @@ export default function Home() {
                   }
                 }}
                 rows={2}
-                placeholder="Send a task to Hermes…  (Enter to send, Shift+Enter for newline)"
+                placeholder={
+                  targetRuntime === "opencode"
+                    ? "Send a task to OpenCode…  (Enter to send, Shift+Enter for newline)"
+                    : "Send a task to Hermes…  (Enter to send, Shift+Enter for newline)"
+                }
                 className="min-h-[52px] flex-1 resize-none rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-500"
               />
               <button
                 type="button"
                 onClick={() => sendPrompt(prompt)}
                 disabled={!composerState.canSend}
-                className="h-[52px] shrink-0 rounded-lg border border-emerald-600/50 bg-emerald-600/20 px-5 text-sm font-semibold text-emerald-300 transition enabled:hover:bg-emerald-600/30 disabled:cursor-not-allowed disabled:opacity-40"
+                className={`h-[52px] shrink-0 rounded-lg border px-5 text-sm font-semibold transition enabled:hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 ${
+                  targetRuntime === "opencode"
+                    ? "border-purple-600/50 bg-purple-600/20 text-purple-300"
+                    : "border-emerald-600/50 bg-emerald-600/20 text-emerald-300"
+                }`}
               >
                 {busy ? "Sending..." : "Send"}
               </button>

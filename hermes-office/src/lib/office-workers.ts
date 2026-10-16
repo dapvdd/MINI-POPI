@@ -23,6 +23,7 @@ import {
   WORKER_STALE_AFTER_MS,
 } from "./runtime/workers";
 import { selectRenderableWorkers } from "./worker-visuals";
+import type { OfficeZoneId } from "./office";
 
 /** Per-runtime accent used by both the 3D badge and the list swatch. */
 export const RUNTIME_ACCENT: Record<RuntimeId, string> = {
@@ -158,4 +159,16 @@ export function officeWorkerKindLabel(worker: RuntimeWorker): string {
  */
 export function isOfficeWorkerSelectable(worker: RuntimeWorker): boolean {
   return Boolean(worker.id);
+}
+
+/**
+ * Resolves which architectural zone a worker belongs to (Phase M).
+ * - OpenCode workers reside in the open workspace / OpenCode hub.
+ * - Hermes workers belong to the primary delegation zone.
+ */
+export function resolveWorkerZoneId(worker: RuntimeWorker): OfficeZoneId {
+  if (worker.runtime === "opencode") {
+    return "workspace";
+  }
+  return "primary";
 }

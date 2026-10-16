@@ -73,6 +73,29 @@ describe("conversationReducer", () => {
     });
   });
 
+  it("records direct multi-runtime responses with runtime tags", () => {
+    let state = sync(initialConversationState, 0);
+    state = reduce(state, {
+      type: "direct-response",
+      runtime: "opencode",
+      userText: "list files",
+      assistantText: "Here are the files: ...",
+    });
+
+    expect(state.messages).toHaveLength(2);
+    expect(state.messages[0]).toMatchObject({
+      role: "user",
+      text: "list files",
+      runtime: "opencode",
+    });
+    expect(state.messages[1]).toMatchObject({
+      role: "assistant",
+      text: "Here are the files: ...",
+      runtime: "opencode",
+      status: "complete",
+    });
+  });
+
   it("ignores replayed or out-of-order completed turns", () => {
     let state = sync(initialConversationState, 0);
     state = submit(state, "A");

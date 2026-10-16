@@ -3,6 +3,8 @@ export type ComposerAvailability = {
   gatewayConnected: boolean;
   sending: boolean;
   hasPrompt: boolean;
+  runtime?: "hermes" | "opencode";
+  opencodeOnline?: boolean;
 };
 
 export function getComposerState({
@@ -10,9 +12,26 @@ export function getComposerState({
   gatewayConnected,
   sending,
   hasPrompt,
+  runtime = "hermes",
+  opencodeOnline = true,
 }: ComposerAvailability) {
   if (sending) {
-    return { canSend: false, hint: "Sending prompt..." };
+    return {
+      canSend: false,
+      hint: runtime === "opencode" ? "Sending prompt to OpenCode..." : "Sending prompt...",
+    };
+  }
+
+  if (runtime === "opencode") {
+    if (!opencodeOnline) {
+      return { canSend: false, hint: "OpenCode service is offline" };
+    }
+    return {
+      canSend: hasPrompt,
+      hint: hasPrompt
+        ? "Enter to send to OpenCode · Shift+Enter for newline"
+        : "Type a prompt for OpenCode",
+    };
   }
 
   if (!connected) {
