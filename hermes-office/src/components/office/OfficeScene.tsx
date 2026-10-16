@@ -315,7 +315,8 @@ export function OfficeScene({
   selectedWorkerId?: string | null;
   onSelectWorker?: (workerId: string | null) => void;
 }) {
-  const { selectedWorkerId = null, onSelectWorker } = { selectedWorkerId: undefined, onSelectWorker: undefined, ...arguments[0] };
+  const { selectedWorkerId = null, onSelectWorker } = { ...({} as any), ...arguments[0] };
+  // eslint-disable-next-line prefer-rest-params
   const now = useRetentionNow();
   const reducedMotion = usePrefersReducedMotion();
 

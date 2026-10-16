@@ -46,10 +46,26 @@ export class HermesClient {
     workers: {},
   };
 
+  private eventListeners = new Set<
+    (event: { type: string; payload?: Record<string, unknown>; sessionId?: string }) => void
+  >();
+
   constructor(
     private readonly token: string,
     private readonly onStateChange: (state: AgentState) => void,
   ) {}
+
+  /**
+   * Additive observer for raw Hermes events. Does not affect existing behavior.
+   */
+  onEvent(
+    listener: (event: { type: string; payload?: Record<string, unknown>; sessionId?: string }) => void,
+  ): () => void {
+    this.eventListeners.add(listener);
+    return () => {
+      this.eventListeners.delete(listener);
+    };
+  }
 
   connect() {
     if (this.wsReady) {
@@ -324,10 +340,22 @@ async submitPrompt(sessionId: string, prompt: string) {
       return;
     }
 
+    const payload = message.params?.payload;
+    const sessionId = typeof payload?.session_id === "string" ? (payload.session_id as string) : undefined;
+
+    // Notify raw event observers (additive; preserve existing behavior)
+    for (const listener of this.eventListeners) {
+      try {
+        listener({ type, payload: payload as Record<string, unknown> | undefined, sessionId });
+      } catch (err) {
+        console.error("HermesClient onEvent listener error:", err);
+      }
+    }
+
     this.updateState(
       mapEventToState(this.state, {
         type,
-        payload: message.params?.payload,
+        payload: payload as Record<string, unknown> | undefined,
       }),
     );
   }

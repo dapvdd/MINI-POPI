@@ -4,8 +4,10 @@ import type { AgentState } from "./types";
 let client: HermesClient | null = null;
 
 type StateListener = (state: AgentState) => void;
+type RawEventListener = (event: { type: string; payload?: Record<string, unknown>; sessionId?: string }) => void;
 
 const listeners = new Set<StateListener>();
+const eventListeners = new Set<RawEventListener>();
 
 export function getHermesClient() {
   if (client) {
@@ -26,6 +28,17 @@ export function getHermesClient() {
     }
   });
 
+  // Forward raw events to subscribers (additive)
+  client.onEvent((event) => {
+    for (const listener of eventListeners) {
+      try {
+        listener(event);
+      } catch (err) {
+        console.error("subscribeToHermesEvents listener error:", err);
+      }
+    }
+  });
+
   client.connect().catch((error) => {
     console.error(
       "❌ Hermes connect failed:",
@@ -43,6 +56,16 @@ export function subscribeToHermesState(
 
   return () => {
     listeners.delete(listener);
+  };
+}
+
+export function subscribeToHermesEvents(
+  listener: RawEventListener,
+) {
+  eventListeners.add(listener);
+
+  return () => {
+    eventListeners.delete(listener);
   };
 }
 

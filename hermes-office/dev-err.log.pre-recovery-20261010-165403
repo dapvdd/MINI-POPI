@@ -1,0 +1,38 @@
+[browser] ❌ Hermes SSE disconnected 
+    at Home.useEffect (src/app/page.tsx:293:13)
+  291 |
+  292 |   source.onerror = () => {
+> 293 |     console.error("❌ Hermes SSE disconnected");
+      |             ^
+  294 |     setConnected(false);
+  295 |     setStatus("OFFLINE");
+  296 |   }; (src/app/page.tsx:293:13)
+[browser] ❌ Hermes SSE disconnected 
+    at Home.useEffect (src/app/page.tsx:293:13)
+  291 |
+  292 |   source.onerror = () => {
+> 293 |     console.error("❌ Hermes SSE disconnected");
+      |             ^
+  294 |     setConnected(false);
+  295 |     setStatus("OFFLINE");
+  296 |   }; (src/app/page.tsx:293:13)
+[browser] ❌ Hermes SSE disconnected 
+    at Home.useEffect (src/app/page.tsx:293:13)
+  291 |
+  292 |   source.onerror = () => {
+> 293 |     console.error("❌ Hermes SSE disconnected");
+      |             ^
+  294 |     setConnected(false);
+  295 |     setStatus("OFFLINE");
+  296 |   }; (src/app/page.tsx:293:13)
+❌ Hermes WebSocket error: Unexpected server response: 403
+⨯ unhandledRejection: Error: Unexpected server response: 403
+    at ignore-listed frames
+❌ Hermes WebSocket error: Unexpected server response: 403
+❌ Hermes session error: Error: Unexpected server response: 403
+    at ignore-listed frames
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.

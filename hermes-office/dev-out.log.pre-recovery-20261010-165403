@@ -1,0 +1,1869 @@
+
+> hermes-office@0.1.0 dev
+> next dev
+
+▲ Next.js 16.3.8 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://100.70.17.124:3000
+- Environments: .env.local
+✓ Ready in 777ms
+✓ Running next.config.ts took 54ms
+
+ GET / 200 in 816ms (next.js: 388ms, application-code: 428ms)
+🤖 MINPOP STATE: {
+  status: 'ERROR',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: 'Unexpected server response: 403',
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'OFFLINE',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: 'Unexpected server response: 403',
+  startedAt: null
+}
+🔌 Hermes Gateway disconnected
+ GET /api/hermes 200 in 60ms (next.js: 45ms, application-code: 14ms)
+🤖 MINPOP STATE: {
+  status: 'ERROR',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: 'Unexpected server response: 403',
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'OFFLINE',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: 'Unexpected server response: 403',
+  startedAt: null
+}
+🔌 Hermes Gateway disconnected
+ POST /api/hermes/session 500 in 63ms (next.js: 41ms, application-code: 22ms)
+🔌 Connected to Hermes Gateway
+🤖 MINPOP STATE: {
+  status: 'OFFLINE',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: 'Unexpected server response: 403',
+  startedAt: null
+}
+ POST /api/hermes/session 200 in 285ms (next.js: 7ms, application-code: 278ms)
+🤖 MINPOP STATE: {
+  status: 'OFFLINE',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: 'Unexpected server response: 403',
+  startedAt: null
+}
+ POST /api/hermes/session 200 in 92ms (next.js: 5ms, application-code: 87ms)
+🤖 MINPOP STATE: {
+  status: 'OFFLINE',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: 'Unexpected server response: 403',
+  startedAt: null
+}
+ POST /api/hermes/prompt 200 in 86ms (next.js: 47ms, application-code: 39ms)
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'USING_TOOL',
+  tool: 'terminal',
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'USING_TOOL',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'USING_TOOL',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'USING_TOOL',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+ GET / 200 in 44ms (next.js: 9ms, application-code: 34ms)
+ GET / 200 in 42ms (next.js: 12ms, application-code: 30ms)
+ GET / 200 in 39ms (next.js: 10ms, application-code: 29ms)
+ GET / 200 in 37ms (next.js: 9ms, application-code: 27ms)
+ GET / 200 in 32ms (next.js: 8ms, application-code: 24ms)
+ GET / 200 in 38ms (next.js: 9ms, application-code: 29ms)
+ GET / 200 in 73ms (next.js: 16ms, application-code: 58ms)
+ GET / 200 in 50ms (next.js: 13ms, application-code: 37ms)
+✓ Compiled in 136ms
+ GET /api/hermes/events 200 in 39.6min (next.js: 84ms, application-code: 39.6min)
+ GET / 200 in 193ms (next.js: 24ms, application-code: 169ms)
+🔌 Connected to Hermes Gateway
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+ GET /api/hermes/events 200 in 7.7min (next.js: 16ms, application-code: 7.7min)
+ GET / 200 in 177ms (next.js: 13ms, application-code: 164ms)
+ POST /api/hermes/session 200 in 128ms (next.js: 11ms, application-code: 117ms)
+ POST /api/hermes/prompt 200 in 58ms (next.js: 9ms, application-code: 49ms)
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'USING_TOOL',
+  tool: 'terminal',
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'USING_TOOL',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791375237132
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791375237132
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791375237132
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: null,
+  command: null,
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+ GET / 200 in 38ms (next.js: 11ms, application-code: 27ms)
+ GET / 200 in 43ms (next.js: 10ms, application-code: 33ms)
+ GET / 200 in 39ms (next.js: 10ms, application-code: 29ms)
+✓ Compiled in 29ms
+ GET / 200 in 42ms (next.js: 11ms, application-code: 31ms)
+✓ Compiled in 46ms
+ GET /api/hermes/events 200 in 25.6min (next.js: 7ms, application-code: 25.6min)
+ GET / 200 in 103ms (next.js: 13ms, application-code: 90ms)
+🔌 Connected to Hermes Gateway
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+ GET / 200 in 40ms (next.js: 14ms, application-code: 26ms)
+✓ Compiled in 34ms
+✓ Compiled in 40ms
+ GET / 200 in 45ms (next.js: 13ms, application-code: 33ms)
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+ GET / 200 in 100ms (next.js: 20ms, application-code: 80ms)
+ GET /api/hermes/events 200 in 27.5min (next.js: 11ms, application-code: 27.5min)
+ POST /api/hermes/session 200 in 113ms (next.js: 8ms, application-code: 105ms)
+ POST /api/hermes/prompt 200 in 54ms (next.js: 9ms, application-code: 45ms)
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+ POST /api/hermes/session 200 in 116ms (next.js: 7ms, application-code: 110ms)
+ POST /api/hermes/prompt 200 in 67ms (next.js: 7ms, application-code: 60ms)
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+ POST /api/hermes/session 200 in 106ms (next.js: 6ms, application-code: 100ms)
+ POST /api/hermes/prompt 200 in 60ms (next.js: 6ms, application-code: 54ms)
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'TERMINAL',
+  tool: 'terminal',
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'TERMINAL',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791378454850
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791378454850
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791378454850
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791378454850
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791378454850
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: null,
+  command: null,
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+ POST /api/hermes/session 200 in 120ms (next.js: 14ms, application-code: 107ms)
+ POST /api/hermes/prompt 200 in 66ms (next.js: 7ms, application-code: 58ms)
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+ GET / 200 in 104ms (next.js: 16ms, application-code: 88ms)
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+ POST /api/hermes/session 200 in 119ms (next.js: 6ms, application-code: 113ms)
+ POST /api/hermes/prompt 200 in 51ms (next.js: 6ms, application-code: 45ms)
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+ POST /api/hermes/session 200 in 105ms (next.js: 6ms, application-code: 99ms)
+ POST /api/hermes/prompt 200 in 65ms (next.js: 8ms, application-code: 57ms)
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+ POST /api/hermes/session 200 in 121ms (next.js: 7ms, application-code: 114ms)
+ POST /api/hermes/prompt 200 in 74ms (next.js: 6ms, application-code: 67ms)
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'TERMINAL',
+  tool: 'terminal',
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'TERMINAL',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791379224625
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379224625
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379224625
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379224625
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379224625
+}
+🤖 MINPOP STATE: {
+  status: 'TERMINAL',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379224625
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379224625
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: null,
+  command: null,
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'TERMINAL',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379237322
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379237322
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379237322
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'TERMINAL',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379237322
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379237322
+}
+🤖 MINPOP STATE: {
+  status: 'TERMINAL',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379243899
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379243899
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379243899
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379243899
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: 'terminal',
+  command: "printf 'HERMES OFFICE TEST\\n'",
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: 1791379243899
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: null,
+  command: null,
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: null,
+  command: null,
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: null,
+  command: null,
+  lastOutput: 'HERMES OFFICE TEST',
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+ POST /api/hermes/session 200 in 110ms (next.js: 6ms, application-code: 104ms)
+ POST /api/hermes/prompt 200 in 64ms (next.js: 6ms, application-code: 58ms)
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'WORKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'THINKING',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: null,
+  command: null,
+  lastOutput: null,
+  lastError: null,
+  startedAt: null
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+🤖 MINPOP STATE: {
+  status: 'IDLE',
+  tool: 'terminal',
+  command: "printf 'MINPOP BASELINE TEST\\n'",
+  lastOutput: null,
+  lastError: null,
+  startedAt: 1791372779492
+}
+ GET /api/hermes/events 200 in 16.3min (next.js: 5ms, application-code: 16.3min)
