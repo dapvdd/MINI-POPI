@@ -3,12 +3,13 @@
 import { useFrame } from "@react-three/fiber";
 import { memo, useEffect, useRef } from "react";
 import * as THREE from "three";
-import type { WorkerState } from "@/lib/hermes/workers";
+import type { RuntimeWorker } from "@/lib/runtime/types";
 import {
   formatWorkerGoal,
   getWorkerStatusVisual,
   type WorkerMotion,
 } from "@/lib/worker-visuals";
+import { runtimeAccent, runtimeLabel } from "@/lib/office-workers";
 import { createWorkerLabelTexture } from "./label-texture";
 import { OFFICE_PALETTE as C, type WorkstationSpec } from "@/lib/office";
 import type { ThreeEvent } from "@react-three/fiber";
@@ -269,16 +270,22 @@ function WorkerBot({
   );
 }
 
-function WorkerLabel({ worker, color }: { worker: WorkerState; color: string }) {
+function WorkerLabel({ worker, color }: { worker: RuntimeWorker; color: string }) {
   const material = useRef<THREE.SpriteMaterial>(null);
   const visual = getWorkerStatusVisual(worker.status);
-  const goal = formatWorkerGoal(worker.goal);
+  const goal = formatWorkerGoal(worker.goal ?? worker.name ?? null);
+  const stale = worker.stale === true;
+  const accent = runtimeAccent(worker.runtime);
+  const rtLabel = runtimeLabel(worker.runtime);
 
   useEffect(() => {
     const texture = createWorkerLabelTexture({
-      statusLabel: visual.label,
+      statusLabel: stale ? `${visual.label} · stale` : visual.label,
       statusColor: color,
       goal,
+      runtimeLabel: rtLabel,
+      runtimeColor: accent,
+      stale,
     });
     const current = material.current;
 
@@ -290,7 +297,7 @@ function WorkerLabel({ worker, color }: { worker: WorkerState; color: string }) 
     return () => {
       texture.dispose();
     };
-  }, [color, visual.label, goal]);
+  }, [color, visual.label, goal, rtLabel, accent, stale]);
 
   return (
     <sprite position={[0, 2.02, 0.35]} scale={[2.6, 0.975, 1]}>
@@ -305,6 +312,24 @@ function WorkerLabel({ worker, color }: { worker: WorkerState; color: string }) 
   );
 }
 
+/**
+ * A short emissive bar clamped to the desk front that carries the runtime
+ * accent, so a Hermes worker and an OpenCode worker are distinguishable at a
+ * glance even before the status color is read.
+ */
+function RuntimeBar({ color, dim }: { color: string; dim: boolean }) {
+  return (
+    <mesh position={[0, 0.62, 0.62]}>
+      <boxGeometry args={[0.9, 0.05, 0.04]} />
+      <meshStandardMaterial
+        color={color}
+        emissive={color}
+        emissiveIntensity={dim ? 0.25 : 0.9}
+      />
+    </mesh>
+  );
+}
+
 export const WorkerStation = memo(function WorkerStation({
   spec,
   worker,
@@ -313,12 +338,20 @@ export const WorkerStation = memo(function WorkerStation({
   onSelect,
 }: {
   spec: WorkstationSpec;
-  worker: WorkerState;
+  worker: RuntimeWorker;
   reducedMotion?: boolean;
   selected?: boolean;
   onSelect?: (workerId: string) => void;
 }) {
+  const stale = worker.stale === true;
   const visual = getWorkerStatusVisual(worker.status);
+  const accent = runtimeAccent(worker.runtime);
+  // A stale worker flips out of any live-work animation: we only animate what
+  // the runtime actually substantiates.
+  const motion: WorkerMotion = stale ? "dormant" : visual.motion;
+  const active = stale ? false : visual.active;
+  const labelColor = stale ? "#71717a" : visual.color;
+
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     onSelect?.(worker.id);
@@ -327,22 +360,19 @@ export const WorkerStation = memo(function WorkerStation({
   return (
     <group position={spec.position} rotation={[0, spec.rotationY, 0]} onClick={handleClick}>
       <WorkerDesk />
-      <WorkerMonitor color={visual.color} active={visual.active} />
+      <WorkerMonitor color={labelColor} active={active} />
       {selected ? (
         <mesh position={[0, 0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
           <ringGeometry args={[3.2, 3.4, 32]} />
-          <meshBasicMaterial color="#22d3ee" transparent opacity={0.6} />
+          <meshBasicMaterial color={accent} transparent opacity={0.6} />
         </mesh>
       ) : null}
       <WorkerStool />
+      <RuntimeBar color={accent} dim={stale} />
       <group position={BOT_OFFSET}>
-        <WorkerBot
-          color={visual.color}
-          motion={visual.motion}
-          reducedMotion={reducedMotion}
-        />
+        <WorkerBot color={labelColor} motion={motion} reducedMotion={reducedMotion} />
       </group>
-      <WorkerLabel worker={worker} color={visual.color} />
+      <WorkerLabel worker={worker} color={labelColor} />
     </group>
   );
 });

@@ -310,6 +310,9 @@ export function OfficeRoom({
   const backZ = backWallZ + wallThickness / 2;
   const leftX = leftWallX + wallThickness / 2;
   const rightX = rightWallX - wallThickness / 2;
+  // The back wall, ceiling and their trim all span the full floor width.
+  const wallSpan = floor.width;
+  const trimSpan = wallSpan - 0.4;
 
   return (
     <group>
@@ -337,7 +340,7 @@ export function OfficeRoom({
 
       {/* WALLS */}
       <mesh position={[floorCenter[0], wallHeight / 2, backZ]} receiveShadow>
-        <boxGeometry args={[24, wallHeight, wallThickness]} />
+        <boxGeometry args={[wallSpan, wallHeight, wallThickness]} />
         <primitive object={materials.wall} attach="material" />
       </mesh>
       <mesh position={[leftX, wallHeight / 2, floorCenter[2]]} receiveShadow>
@@ -351,13 +354,13 @@ export function OfficeRoom({
 
       {/* CEILING */}
       <mesh position={[floorCenter[0], ceilingY, floorCenter[2]]}>
-        <boxGeometry args={[24, 0.2, floor.depth]} />
+        <boxGeometry args={[wallSpan, 0.2, floor.depth]} />
         <primitive object={materials.panel} attach="material" />
       </mesh>
 
       {/* BASEBOARDS + CORNER TRIM */}
       <mesh position={[floorCenter[0], 0.14, backZ + wallThickness / 2]} receiveShadow>
-        <boxGeometry args={[24, 0.28, 0.1]} />
+        <boxGeometry args={[wallSpan, 0.28, 0.1]} />
         <primitive object={materials.trim} attach="material" />
       </mesh>
       <mesh position={[leftX + wallThickness / 2, 0.14, floorCenter[2]]} receiveShadow>
@@ -369,11 +372,11 @@ export function OfficeRoom({
         <primitive object={materials.trim} attach="material" />
       </mesh>
 
-      {/* Corner pillars â€” asymmetric anchors that break the long walls. */}
+      {/* Corner pillars — asymmetric anchors that break the long walls. */}
       {[
-        [leftX + wallThickness, -4.6],
-        [rightX - wallThickness, -4.6],
-        [rightX - wallThickness, 6.2],
+        [leftX + wallThickness, floorCenter[2] - 5.4],
+        [rightX - wallThickness, floorCenter[2] - 5.4],
+        [rightX - wallThickness, floorCenter[2] + 5.4],
       ].map(([x, z]) => (
         <mesh key={`${x}-${z}`} position={[x, wallHeight / 2, z]} castShadow receiveShadow>
           <boxGeometry args={[0.34, wallHeight, 0.34]} />
@@ -383,7 +386,7 @@ export function OfficeRoom({
 
       {/* Emissive crown line where wall meets ceiling. */}
       <mesh position={[floorCenter[0], ceilingY - 0.16, backZ + wallThickness / 2]}>
-        <boxGeometry args={[23.6, 0.06, 0.05]} />
+        <boxGeometry args={[trimSpan, 0.06, 0.05]} />
         <meshStandardMaterial
           color={C.wallTrim}
           emissive={C.accent}

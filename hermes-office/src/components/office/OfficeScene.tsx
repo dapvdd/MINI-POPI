@@ -11,7 +11,7 @@ import {
 import * as THREE from "three";
 import type { AgentStatus } from "@/lib/hermes/types";
 import type { GatewayErrorKind } from "@/lib/hermes/connection";
-import type { WorkerState } from "@/lib/hermes/workers";
+import type { RuntimeWorker } from "@/lib/runtime/types";
 import {
   getPointLightColor,
   getPointLightIntensity,
@@ -39,6 +39,7 @@ import { usePrefersReducedMotion } from "./use-prefers-reduced-motion";
 import { createBadgeTexture } from "./label-texture";
 import { PopiScreenAnchor, type PopiAnchorProbe } from "./PopiSpeechBubble";
 import { OfficeRoom } from "./Room";
+import { OfficeZones } from "./Zones";
 import { ServerRack } from "./ServerRack";
 import { WorkerStation } from "./WorkerStation";
 import { Workstation } from "./Workstation";
@@ -198,17 +199,17 @@ function StructuralLights({
     <>
       <pointLight
         ref={rim}
-        position={[2, 3.4, -4.6]}
+        position={[3, 3.6, -5.2]}
         intensity={lighting.rim}
-        distance={21}
+        distance={28}
         decay={2}
         color={visor ? "#67e8f9" : C.accent}
       />
       <pointLight
         ref={fill}
-        position={[-6.2, 2.6, 2.4]}
+        position={[-8.4, 2.8, 3.4]}
         intensity={lighting.fill}
-        distance={17}
+        distance={22}
         decay={2}
         color={visor ? "#64748b" : C.violet}
       />
@@ -250,7 +251,7 @@ function CeilingLights({
           }}
           position={[0, OFFICE_LAYOUT.ceilingY - 0.5, z]}
           intensity={intensity}
-          distance={15}
+          distance={22}
           decay={2}
           color="#dbeafe"
         />
@@ -269,8 +270,9 @@ function CameraRig({ focusDistance, targetOverride }: { focusDistance: number; t
   useEffect(() => {
     const aspect = size.height > 0 ? size.width / size.height : 1;
     // Narrow viewports need more distance, not less: the workstation plus the
-    // character has to stay inside the shorter axis.
-    const aspectDistance = aspect < 1 ? 9.8 : aspect < 1.5 ? 8.6 : 7.2;
+    // character has to stay inside the shorter axis. Scaled up for the Phase L
+    // hall so the default framing still reads as an office overview.
+    const aspectDistance = aspect < 1 ? 16.5 : aspect < 1.5 ? 14.5 : 12.0;
     const distance = Math.max(aspectDistance, focusDistance);
     const targetPos = targetOverride ? new THREE.Vector3(...targetOverride) : new THREE.Vector3(...CAMERA_TARGET);
 
@@ -290,7 +292,7 @@ function CameraRig({ focusDistance, targetOverride }: { focusDistance: number; t
 
 export interface OfficeSceneProps {
   status: AgentStatus;
-  workers: WorkerState[];
+  workers: RuntimeWorker[];
   sseConnected: boolean;
   gatewayConnected: boolean;
   connectionError: GatewayErrorKind | null;
@@ -361,20 +363,20 @@ export function OfficeScene({
 
   const focusDistance = useMemo(() => {
     const extent = Math.max(
-      2.8,
+      3.4,
       ...layout.assignments.map(({ spec }) =>
         Math.hypot(spec.position[0], spec.position[2]),
       ),
     );
 
-    return Math.min(15, extent * 0.85 + 3.4);
+    return Math.min(20, extent * 0.85 + 3.4);
   }, [layout]);
 
   return (
     <>
       <color attach="background" args={[C.background]} />
       {/* Depth haze: keeps the far wall from clipping flat against the sky. */}
-      <fog attach="fog" args={[C.background, 11, 32]} />
+      <fog attach="fog" args={[C.background, 16, 48]} />
 
       <ambientLight intensity={lighting.ambient} />
       <hemisphereLight
@@ -390,11 +392,11 @@ export function OfficeScene({
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
         shadow-camera-near={1}
-        shadow-camera-far={40}
-        shadow-camera-left={-16}
-        shadow-camera-right={16}
-        shadow-camera-top={16}
-        shadow-camera-bottom={-16}
+        shadow-camera-far={48}
+        shadow-camera-left={-22}
+        shadow-camera-right={22}
+        shadow-camera-top={22}
+        shadow-camera-bottom={-22}
         shadow-bias={-0.0005}
       />
 
@@ -421,6 +423,7 @@ export function OfficeScene({
         presence={presence}
         reducedMotion={reducedMotion}
       />
+      <OfficeZones />
       <ServerRack reducedMotion={reducedMotion} />
       <Workstation
         spec={POPI_WORKSTATION}
@@ -469,8 +472,8 @@ export function OfficeScene({
         makeDefault
         enablePan={false}
         enableDamping
-        minDistance={4}
-        maxDistance={17}
+        minDistance={5}
+        maxDistance={30}
         maxPolarAngle={Math.PI / 2.05}
         target={CAMERA_TARGET}
       />

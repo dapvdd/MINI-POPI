@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { OFFICE_LAYOUT, POPI_AGENT_OFFSET } from "./office";
+import {
+  MAX_WORKER_WORKSTATIONS,
+  OFFICE_LAYOUT,
+  POPI_AGENT_OFFSET,
+} from "./office";
 import {
   POPI_BODY_RADIUS,
   POPI_OBSTACLES,
@@ -54,8 +58,9 @@ describe("wander bounds", () => {
     expect(labels).toContain("popi-desk");
     expect(labels).toContain("popi-chair");
     expect(labels).toContain("server-rack");
+    // One obstacle per physical worker workstation in the current layout.
     expect(labels.filter((label) => label.startsWith("worker-")).length).toBe(
-      10,
+      MAX_WORKER_WORKSTATIONS,
     );
   });
 });

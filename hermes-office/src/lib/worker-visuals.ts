@@ -6,7 +6,6 @@
 
 import {
   isTerminalWorkerStatus,
-  type WorkerState,
   type WorkerStatus,
 } from "./hermes/workers";
 
@@ -108,8 +107,19 @@ export function getWorkerStatusVisual(
  */
 export const WORKER_TERMINAL_TTL_MS = 30_000;
 
+/**
+ * Minimal shape the selectors need. Both the Hermes `WorkerState` and the
+ * unified `RuntimeWorker` satisfy it, so the office can render either without
+ * duplicating the retention logic.
+ */
+export interface WorkerRetentionLike {
+  status: WorkerStatus;
+  completedAt?: number | null;
+  updatedAt: number;
+}
+
 export function isWorkerVisuallyExpired(
-  worker: WorkerState,
+  worker: WorkerRetentionLike,
   now: number,
   ttlMs: number = WORKER_TERMINAL_TTL_MS,
 ): boolean {
@@ -127,11 +137,11 @@ export function isWorkerVisuallyExpired(
  * always shown; terminal workers fade out after the TTL. Order is preserved
  * from the caller (already stable via `workersToArray`).
  */
-export function selectRenderableWorkers(
-  workers: readonly WorkerState[],
+export function selectRenderableWorkers<T extends WorkerRetentionLike>(
+  workers: readonly T[],
   now: number,
   ttlMs: number = WORKER_TERMINAL_TTL_MS,
-): WorkerState[] {
+): T[] {
   return workers.filter(
     (worker) => !isWorkerVisuallyExpired(worker, now, ttlMs),
   );

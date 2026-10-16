@@ -60,12 +60,21 @@ export interface WorkerLabelTextureInput {
   statusLabel: string;
   statusColor: string;
   goal: string;
+  /** Runtime name shown as a small pill (e.g. "Hermes", "OpenCode"). */
+  runtimeLabel?: string;
+  /** Runtime accent color for the pill. */
+  runtimeColor?: string;
+  /** When true, the worker's evidence is stale and the label is dimmed. */
+  stale?: boolean;
 }
 
 export function createWorkerLabelTexture({
   statusLabel,
   statusColor,
   goal,
+  runtimeLabel,
+  runtimeColor,
+  stale = false,
 }: WorkerLabelTextureInput): THREE.CanvasTexture {
   const width = 384;
   const height = 144;
@@ -77,6 +86,7 @@ export function createWorkerLabelTexture({
 
   if (ctx) {
     ctx.clearRect(0, 0, width, height);
+    ctx.globalAlpha = stale ? 0.62 : 1;
 
     roundedRect(ctx, 8, 8, width - 16, height - 16, 20);
     ctx.fillStyle = "rgba(9, 9, 11, 0.86)";
@@ -96,15 +106,42 @@ export function createWorkerLabelTexture({
     ctx.fillStyle = statusColor;
     ctx.fillText(statusLabel.toUpperCase(), 62, 50);
 
+    if (runtimeLabel) {
+      const accent = runtimeColor ?? "#a1a1aa";
+      ctx.font = `700 18px ${MONO_STACK}`;
+      const label = runtimeLabel.toUpperCase();
+      const textWidth = ctx.measureText(label).width;
+      const pillRight = width - 24;
+      const pillWidth = textWidth + 24;
+      const pillLeft = pillRight - pillWidth;
+
+      roundedRect(ctx, pillLeft, 30, pillWidth, 36, 18);
+      ctx.fillStyle = `${accent}33`;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = `${accent}cc`;
+      ctx.stroke();
+
+      ctx.fillStyle = accent;
+      ctx.textAlign = "center";
+      ctx.fillText(label, pillLeft + pillWidth / 2, 49);
+      ctx.textAlign = "left";
+    }
+
     ctx.font = `500 28px ${MONO_STACK}`;
-    ctx.fillStyle = "#d4d4d8";
+    ctx.fillStyle = stale ? "#a1a1aa" : "#d4d4d8";
     ctx.fillText(fitText(ctx, goal, width - 48), 24, 106);
+
+    ctx.globalAlpha = 1;
   }
 
   return finalize(canvas);
 }
 
-export function createBadgeTexture(text: string): THREE.CanvasTexture {
+export function createBadgeTexture(
+  text: string,
+  color = "#d4d4d8",
+): THREE.CanvasTexture {
   const width = 384;
   const height = 96;
   const canvas = document.createElement("canvas");
@@ -120,13 +157,13 @@ export function createBadgeTexture(text: string): THREE.CanvasTexture {
     ctx.fillStyle = "rgba(9, 9, 11, 0.86)";
     ctx.fill();
     ctx.lineWidth = 4;
-    ctx.strokeStyle = "#3f3f46";
+    ctx.strokeStyle = `${color}66`;
     ctx.stroke();
 
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font = `700 28px ${MONO_STACK}`;
-    ctx.fillStyle = "#d4d4d8";
+    ctx.fillStyle = color;
     ctx.fillText(text.toUpperCase(), width / 2, height / 2);
   }
 

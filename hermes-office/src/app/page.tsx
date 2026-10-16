@@ -13,6 +13,14 @@ import {
   workersToArray,
   type WorkerState,
 } from "@/lib/hermes/workers";
+import type { RuntimeWorker } from "@/lib/runtime/types";
+import {
+  mergeOfficeWorkers,
+  officeWorkerKindLabel,
+  officeWorkerTitle,
+  runtimeAccent,
+  runtimeLabel,
+} from "@/lib/office-workers";
 import {
   describeInterruptError,
   describeInterruptResult,
@@ -157,7 +165,10 @@ export default function Home() {
     conversationReducer,
     initialConversationState,
   );
-  const [workers, setWorkers] = useState<WorkerState[]>([]);
+  const [hermesWorkers, setHermesWorkers] = useState<WorkerState[]>([]);
+  const [runtimeWorkers, setRuntimeWorkers] = useState<RuntimeWorker[]>([]);
+  const [runtimeLive, setRuntimeLive] = useState<Record<string, boolean>>({});
+  const [officeWorkers, setOfficeWorkers] = useState<RuntimeWorker[]>([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [interrupting, setInterrupting] = useState(false);
   const [interruptMsg, setInterruptMsg] =
@@ -178,6 +189,7 @@ export default function Home() {
   const turnSeqRef = useRef(0);
   const gatewayRef = useRef(false);
   const workersSigRef = useRef("");
+  const officeWorkersRef = useRef<RuntimeWorker[]>([]);
 
   useEffect(() => {
     const el = document.getElementById("conversation-panel");
@@ -275,7 +287,7 @@ export default function Home() {
 
       if (workersSig !== workersSigRef.current) {
         workersSigRef.current = workersSig;
-        setWorkers(nextWorkers);
+        setHermesWorkers(nextWorkers);
       }
 
       const line =
@@ -353,6 +365,71 @@ export default function Home() {
       source = null;
     };
   }, []);
+
+  /* =========================================================
+     RUNTIME WORKERS (Phase L)
+     OpenCode active sessions (and, for reconciliation, Hermes) are polled
+     from /api/runtimes/workers. Each runtime stays independent: a failing
+     poll marks that runtime's workers stale instead of dropping them or
+     disturbing the other runtime.
+  ========================================================= */
+  useEffect(() => {
+    let disposed = false;
+
+    async function load() {
+      try {
+        const res = await fetch("/api/runtimes/workers", { cache: "no-store" });
+        if (!res.ok) {
+          if (!disposed) setRuntimeWorkers([]);
+          return;
+        }
+        const json = (await res.json()) as {
+          workers?: RuntimeWorker[];
+          runtimes?: Record<string, { ok?: boolean }>;
+        };
+        if (disposed) return;
+        setRuntimeWorkers(Array.isArray(json.workers) ? json.workers : []);
+        setRuntimeLive({
+          hermes: Boolean(json.runtimes?.hermes?.ok),
+          opencode: Boolean(json.runtimes?.opencode?.ok),
+        });
+      } catch {
+        if (!disposed) setRuntimeWorkers([]);
+      }
+    }
+
+    const initial = window.setTimeout(() => void load(), 0);
+    const timer = window.setInterval(() => void load(), 5000);
+    return () => {
+      disposed = true;
+      window.clearTimeout(initial);
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const now = Date.now();
+    const reconcile: Array<"hermes" | "opencode"> = [];
+    // Only reconcile a runtime we actually have a fresh snapshot for. An SSE
+    // disconnect must not stale Hermes workers from a poll we never got.
+    if (connected) reconcile.push("hermes");
+    if (runtimeLive.opencode) reconcile.push("opencode");
+
+    const next = mergeOfficeWorkers({
+      previous: officeWorkersRef.current,
+      hermesWorkers,
+      runtimeWorkers,
+      reconcile,
+      now,
+    });
+
+    officeWorkersRef.current = next;
+
+    // Defer out of the effect body (mirrors RuntimeControl) so consumers never
+    // see a synchronous cascading render from this derived-state merge.
+    const handle = window.setTimeout(() => setOfficeWorkers(next), 0);
+    return () => window.clearTimeout(handle);
+  }, [hermesWorkers, runtimeWorkers, runtimeLive, connected]);
 
   /* =========================================================
      SEND TO BRIDGE
@@ -473,6 +550,14 @@ export default function Home() {
       return;
     }
 
+    if (!interruptibleHermesWorker) {
+      setInterruptMsg({
+        tone: "error",
+        text: `Interrupt is unavailable for this ${runtimeLabel(selectedWorker.runtime)} ${officeWorkerKindLabel(selectedWorker)}.`,
+      });
+      return;
+    }
+
     if (!sessionId) {
       setInterruptMsg({
         tone: "error",
@@ -492,7 +577,8 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             session_id: sessionId,
-            subagent_id: selectedWorker.id,
+            // Source-level subagent id, never the composite office id.
+            subagent_id: selectedWorker.sourceId,
           }),
         },
       );
@@ -571,16 +657,34 @@ export default function Home() {
 
   const bubbleMessage = useSpeechBubble(bubbleInput);
   const selectedWorker = selectedWorkerId
-    ? workers.find((worker) => worker.id === selectedWorkerId) ?? null
+    ? officeWorkers.find((worker) => worker.id === selectedWorkerId) ?? null
     : null;
+
+  /*
+   * Only Hermes subagent workers are interruptible from the office: the
+   * Gateway's `subagent.interrupt` RPC is the only verified cancel path, and it
+   * targets a source-level subagent id. OpenCode session workers have no such
+   * contract exposed here, so the control is visibly unavailable rather than
+   * silently misfiring across runtime/session boundaries.
+   */
+  const interruptibleHermesWorker =
+    selectedWorker !== null &&
+    selectedWorker.runtime === "hermes" &&
+    selectedWorker.kind !== "session";
+
   const interruptAvailability = selectedWorker
-    ? resolveInterruptAvailability({
-        hasSession: sessionId !== null,
-        status: selectedWorker.status,
-        gatewayConnected,
-        connectionError,
-        interrupting,
-      })
+    ? interruptibleHermesWorker
+      ? resolveInterruptAvailability({
+          hasSession: sessionId !== null,
+          status: selectedWorker.status,
+          gatewayConnected,
+          connectionError,
+          interrupting,
+        })
+      : {
+          enabled: false,
+          reason: `Interrupt is only available for Hermes subagent workers. This is a ${runtimeLabel(selectedWorker.runtime)} ${officeWorkerKindLabel(selectedWorker)}, so cancellation is unavailable.`,
+        }
     : { enabled: false, reason: null };
 
   return (
@@ -628,7 +732,7 @@ export default function Home() {
             >
               <OfficeScene
                 status={status}
-                workers={workers}
+                workers={officeWorkers}
                 tool={tool === "-" ? null : tool}
                 command={command === "-" ? null : command}
                 turnSeq={celebrationKey}
@@ -784,18 +888,32 @@ export default function Home() {
                 className="text-indigo-300"
               />
 
-              {workers.length > 0 ? (
+              {officeWorkers.length > 0 ? (
                 <div>
-                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
-                    Workers · {workers.length}
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+                      Workers · {officeWorkers.length}
+                    </span>
+                    <span className="text-[10px] uppercase tracking-widest text-zinc-600">
+                      hermes · opencode
+                    </span>
                   </div>
                   <ul className="space-y-1.5">
-                    {workers.map((worker) => {
+                    {officeWorkers.map((worker) => {
                       const visual = getWorkerStatusVisual(worker.status);
                       const selected = worker.id === selectedWorkerId;
+                      const stale = worker.stale === true;
+                      const title = officeWorkerTitle(worker);
+                      const accent = runtimeAccent(worker.runtime);
+                      const kind = officeWorkerKindLabel(worker);
 
                       return (
-                        <li key={worker.id} data-worker-id={worker.id}>
+                        <li
+                          key={worker.id}
+                          data-worker-id={worker.id}
+                          data-runtime={worker.runtime}
+                          data-stale={stale}
+                        >
                           <button
                             type="button"
                             onClick={() => {
@@ -815,34 +933,44 @@ export default function Home() {
                                 <span
                                   className="h-1.5 w-1.5 shrink-0 rounded-full"
                                   style={{
-                                    backgroundColor: visual.color,
+                                    backgroundColor: stale ? "#71717a" : visual.color,
                                   }}
                                 />
                                 <span
                                   className="truncate text-[11px] text-zinc-200"
-                                  title={worker.goal}
+                                  title={title}
                                 >
-                                  {worker.goal || "untitled task"}
+                                  {title}
                                 </span>
                               </span>
                               <span
                                 className="shrink-0 text-[10px] uppercase tracking-wide"
-                                style={{ color: visual.color }}
+                                style={{ color: stale ? "#71717a" : visual.color }}
                               >
                                 {visual.label}
-                                {worker.taskCount > 1
-                                  ? ` · ${worker.taskIndex + 1}/${worker.taskCount}`
-                                  : ""}
+                                {stale ? " · stale" : ""}
                               </span>
                             </span>
-                            {worker.activity ? (
+                            <span className="mt-0.5 flex items-center gap-1.5 text-[10px]">
                               <span
-                                className="mt-0.5 block truncate text-[10px] text-zinc-500"
-                                title={worker.activity}
+                                className="rounded border px-1 uppercase tracking-wider"
+                                style={{
+                                  borderColor: `${accent}66`,
+                                  color: accent,
+                                }}
                               >
-                                {worker.activity}
+                                {runtimeLabel(worker.runtime)}
                               </span>
-                            ) : null}
+                              <span className="text-zinc-600">{kind}</span>
+                              {worker.activity ? (
+                                <span
+                                  className="truncate text-zinc-500"
+                                  title={worker.activity}
+                                >
+                                  · {worker.activity}
+                                </span>
+                              ) : null}
+                            </span>
                           </button>
                         </li>
                       );
@@ -874,16 +1002,63 @@ export default function Home() {
 
                             <p
                               className="truncate text-[11px] text-zinc-200"
-                              title={selectedWorker.goal}
+                              title={officeWorkerTitle(selectedWorker)}
                             >
-                              {selectedWorker.goal || "untitled task"}
+                              {officeWorkerTitle(selectedWorker)}
                             </p>
-                            <p
-                              className="truncate text-[10px] text-zinc-500"
-                              title={selectedWorker.id}
-                            >
-                              {selectedWorker.id}
-                            </p>
+
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]">
+                              <span
+                                className="rounded border px-1 uppercase tracking-wider"
+                                style={{
+                                  borderColor: `${runtimeAccent(selectedWorker.runtime)}66`,
+                                  color: runtimeAccent(selectedWorker.runtime),
+                                }}
+                                title={`Runtime: ${runtimeLabel(selectedWorker.runtime)}`}
+                              >
+                                {runtimeLabel(selectedWorker.runtime)}
+                              </span>
+                              <span className="text-zinc-500">
+                                {officeWorkerKindLabel(selectedWorker)}
+                              </span>
+                              {selectedWorker.stale ? (
+                                <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1 uppercase tracking-wider text-amber-300">
+                                  stale
+                                </span>
+                              ) : null}
+                              {selectedWorker.kind === "session" ? (
+                                <span className="text-zinc-600">
+                                  session-level · no subagent events
+                                </span>
+                              ) : null}
+                            </div>
+
+                            <dl className="mt-1.5 grid grid-cols-[58px_minmax(0,1fr)] gap-x-2 gap-y-1 text-[10px]">
+                              <dt className="text-zinc-500">Session</dt>
+                              <dd
+                                className="truncate text-zinc-300"
+                                title={selectedWorker.sessionId ?? selectedWorker.id}
+                              >
+                                {selectedWorker.sessionId ?? selectedWorker.id}
+                              </dd>
+
+                              <dt className="text-zinc-500">Task</dt>
+                              <dd className="break-words text-zinc-300">
+                                {selectedWorker.activity ??
+                                  (selectedWorker.taskCount &&
+                                  selectedWorker.taskCount > 1
+                                    ? `step ${(selectedWorker.taskIndex ?? 0) + 1} of ${selectedWorker.taskCount}`
+                                    : "—")}
+                              </dd>
+
+                              <dt className="text-zinc-500">Worker</dt>
+                              <dd
+                                className="truncate text-zinc-500"
+                                title={selectedWorker.id}
+                              >
+                                {selectedWorker.id}
+                              </dd>
+                            </dl>
 
                             <button
                               type="button"

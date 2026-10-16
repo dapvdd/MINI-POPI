@@ -306,6 +306,11 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
             tokens: null,
             toolsets: [],
             summary: null,
+            sessionId: toCompositeId("opencode", String(sid)),
+            name: null,
+            kind: "session",
+            stale: false,
+            lastSeenAt: Date.now(),
           });
         }
       }

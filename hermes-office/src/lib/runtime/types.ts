@@ -93,6 +93,23 @@ export interface RuntimeWorker {
   tokens?: HermesWorkerState["tokens"] | null;
   toolsets?: string[];
   summary?: string | null;
+  /**
+   * Phase L additions. All optional and additive so existing producers keep
+   * compiling; they only enrich the living-office representation.
+   */
+  /** Owning session composite id, where the runtime exposes one. */
+  sessionId?: CompositeId | null;
+  /** Display name / role where the runtime supplies one (else null). */
+  name?: string | null;
+  /** Whether this represents a delegated worker or a session-level entity. */
+  kind?: "worker" | "session";
+  /** True once the registry has observed no update within its stale window. */
+  stale?: boolean;
+  /** Wall-clock time the registry last saw evidence for this worker. */
+  lastSeenAt?: number;
+  /** Hermes delegation progress (0-based index / total), when available. */
+  taskIndex?: number | null;
+  taskCount?: number | null;
 }
 
 /**

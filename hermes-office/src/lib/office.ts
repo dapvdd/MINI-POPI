@@ -52,28 +52,33 @@ export const OFFICE_PALETTE = {
 export type OfficePaletteKey = keyof typeof OFFICE_PALETTE;
 
 export const OFFICE_LAYOUT = {
-  floor: { width: 24, depth: 16, center: [0, 0, 1] as Vec3 },
-  backWallZ: -6,
-  leftWallX: -8,
+  /**
+   * Phase L expansion: the hall roughly doubles in area so it can host distinct
+   * zones (Popi's primary workspace, a large open worker floor, a collaboration
+   * room and a lounge) without any desk, character or furniture overlapping.
+   */
+  floor: { width: 32, depth: 22, center: [0, 0, 2] as Vec3 },
+  backWallZ: -9,
+  leftWallX: -13,
   /** Enclosing wall on the open camera side, kept inside the floor edge. */
-  rightWallX: 11.6,
-  wallHeight: 4.4,
+  rightWallX: 15.5,
+  wallHeight: 4.8,
   wallThickness: 0.3,
-  ceilingY: 4.4,
-  rug: { width: 7.5, depth: 6, center: [0, 0, 1.4] as Vec3 },
+  ceilingY: 4.8,
+  rug: { width: 8, depth: 6.4, center: [0, 0, 1.4] as Vec3 },
   /**
    * Infrastructure zone. The rack is a compact unit sitting flush against the
    * back wall in the open pocket left of Popi's desk, clear of every worker
    * station row.
    */
   serverRack: {
-    position: [0.8, 0, -5.4] as Vec3,
+    position: [0.8, 0, -8.55] as Vec3,
     size: [0.95, 2.1, 0.6] as Vec3,
   },
   /** Long window band on the left wall, well clear of every desk row. */
   window: {
-    position: [-7.7, 2.2, 2.9] as Vec3,
-    size: [0.06, 2.6, 3.2] as Vec3,
+    position: [-12.85, 2.4, 3.0] as Vec3,
+    size: [0.06, 2.8, 3.4] as Vec3,
   },
 } as const;
 
@@ -94,13 +99,14 @@ export const WALL_PANELS: ReadonlyArray<{
   width: number;
   height: number;
 }> = [
-  { x: -2.6, y: 2.5, width: 1.7, height: 1.5 },
-  { x: 0.4, y: 2.5, width: 2.4, height: 0.9 },
-  { x: 8.4, y: 2.5, width: 1.5, height: 1.1 },
+  { x: -5.0, y: 2.6, width: 1.9, height: 1.6 },
+  { x: 3.2, y: 2.6, width: 2.6, height: 0.95 },
+  { x: 11.6, y: 2.6, width: 1.6, height: 1.2 },
+  { x: -9.0, y: 2.6, width: 1.4, height: 1.3 },
 ];
 
 /** Ceiling light bands along the room's length. */
-export const CEILING_BANDS: readonly number[] = [-3.4, 0.6, 4.6];
+export const CEILING_BANDS: readonly number[] = [-6.2, -2.2, 1.8, 5.8, 9.8];
 
 /** Rack equipment geometry — mirrors the unit shelves in `ServerRack`. */
 export const SERVER_RACK_UNITS = 4;
@@ -173,24 +179,33 @@ export const POPI_WORKSTATION: WorkstationSpec = {
  * `overflow` by `assignWorkerWorkstations` and stay represented in the
  * Activity list instead of being placed outside the room.
  */
-export const MAX_WORKER_WORKSTATIONS = 10;
+export const MAX_WORKER_WORKSTATIONS = 18;
 
 /**
  * Reserved in-room desks, ordered nearest-first so small delegations stay close
- * to Popi. Rows flank the main workstation and sit against the back wall; all
- * positions clear Popi's footprint and the left/back walls.
+ * to Popi. Three rows of six flank the main workstation and sit against the
+ * back wall; all positions clear Popi's footprint and the left/back walls, and
+ * every pair is at least 2.5 units apart so no two desks can overlap.
  */
 const WORKER_SLOT_LAYOUT: ReadonlyArray<{ x: number; z: number }> = [
-  { x: 3.4, z: -1.6 },
-  { x: -3.4, z: -1.6 },
-  { x: 6.4, z: -1.6 },
-  { x: -6.4, z: -1.6 },
-  { x: 9.4, z: -1.6 },
-  { x: 3.4, z: -4.2 },
-  { x: -3.4, z: -4.2 },
-  { x: 6.4, z: -4.2 },
-  { x: -6.4, z: -4.2 },
-  { x: 9.4, z: -4.2 },
+  { x: 3.4, z: -1.8 },
+  { x: -3.4, z: -1.8 },
+  { x: 6.6, z: -1.8 },
+  { x: -6.6, z: -1.8 },
+  { x: 9.8, z: -1.8 },
+  { x: -9.8, z: -1.8 },
+  { x: 3.4, z: -4.8 },
+  { x: -3.4, z: -4.8 },
+  { x: 6.6, z: -4.8 },
+  { x: -6.6, z: -4.8 },
+  { x: 9.8, z: -4.8 },
+  { x: -9.8, z: -4.8 },
+  { x: 3.4, z: -7.8 },
+  { x: -3.4, z: -7.8 },
+  { x: 6.6, z: -7.8 },
+  { x: -6.6, z: -7.8 },
+  { x: 9.8, z: -7.8 },
+  { x: -9.8, z: -7.8 },
 ];
 
 /**
@@ -310,3 +325,174 @@ export function isWithinOfficeBounds(
 
   return x >= minX && x <= maxX && z >= minZ && z <= maxZ;
 }
+
+/* =========================================================
+   ZONES (Phase L)
+   The office is divided into coherent architectural zones.
+   Each zone is pure data: a footprint used for its floor plate
+   and a label used for its hanging sign, so the composition can
+   be tested rather than eyeballed.
+======================================================== */
+
+export type OfficeZoneId =
+  | "primary"
+  | "workspace"
+  | "collaboration"
+  | "lounge"
+  | "infrastructure";
+
+export interface OfficeZone {
+  id: OfficeZoneId;
+  label: string;
+  /** Accent color for the floor plate and zone sign. */
+  accent: string;
+  center: Vec3;
+  /** Footprint [width(x), depth(z)] of the zone's floor plate. */
+  size: [number, number];
+}
+
+export const OFFICE_ZONES: readonly OfficeZone[] = [
+  {
+    id: "primary",
+    label: "Primary Workspace",
+    accent: OFFICE_PALETTE.accent,
+    center: [0, 0, 0.8],
+    size: [7.4, 6.4],
+  },
+  {
+    id: "workspace",
+    label: "Open Workspace",
+    accent: OFFICE_PALETTE.accentSoft,
+    center: [0, 0, -4.6],
+    size: [23.4, 7.2],
+  },
+  {
+    id: "collaboration",
+    label: "Collaboration",
+    accent: OFFICE_PALETTE.violet,
+    center: [12.4, 0, 4.0],
+    size: [5.6, 8.4],
+  },
+  {
+    id: "lounge",
+    label: "Lounge",
+    accent: OFFICE_PALETTE.plant,
+    center: [-9.6, 0, 6.6],
+    size: [6.0, 8.4],
+  },
+  {
+    id: "infrastructure",
+    label: "Infrastructure",
+    accent: OFFICE_PALETTE.warm,
+    center: [0, 0, -8.2],
+    size: [4.4, 1.0],
+  },
+];
+
+/** Rectangle [minX, maxX, minZ, maxZ] for a zone's floor footprint. */
+export function zoneBounds(zone: OfficeZone): [number, number, number, number] {
+  const [x, , z] = zone.center;
+  const [w, d] = zone.size;
+  return [x - w / 2, x + w / 2, z - d / 2, z + d / 2];
+}
+
+/* =========================================================
+   ZONE FURNITURE (Phase L)
+   Data-driven placements for the collaboration and lounge
+   zones so props can be proven non-overlapping and inside the
+   room rather than positioned by trial and error.
+======================================================== */
+
+/** Round collaboration table at the center of the collaboration zone. */
+export const COLLABORATION_TABLE = {
+  position: [12.4, 0, 4.0] as Vec3,
+  radius: 1.35,
+  height: 0.74,
+} as const;
+
+/** Chairs arranged around the collaboration table (unit offsets). */
+export const COLLABORATION_CHAIRS: ReadonlyArray<Vec3> = (() => {
+  const seats: Vec3[] = [];
+  const count = 6;
+  const ring = COLLABORATION_TABLE.radius + 0.85;
+  for (let i = 0; i < count; i += 1) {
+    const angle = (i / count) * Math.PI * 2;
+    seats.push([
+      COLLABORATION_TABLE.position[0] + Math.cos(angle) * ring,
+      0,
+      COLLABORATION_TABLE.position[2] + Math.sin(angle) * ring,
+    ]);
+  }
+  return seats;
+})();
+
+/** Whiteboard mounted on the right wall, inside the collaboration zone. */
+export const COLLABORATION_BOARD = {
+  position: [OFFICE_LAYOUT.rightWallX - 0.2, 2.3, 4.0] as Vec3,
+  size: [0.08, 1.5, 3.0] as Vec3,
+} as const;
+
+/** Lounge sofa, coffee table and plant placements. */
+export const LOUNGE_FURNITURE = {
+  sofa: { position: [-9.6, 0, 8.4] as Vec3, width: 3.0 },
+  table: { position: [-9.6, 0, 6.6] as Vec3, radius: 0.62 },
+  plants: [
+    [-12.0, 0, 3.4] as Vec3,
+    [-7.4, 0, 9.6] as Vec3,
+    [-12.0, 0, 9.6] as Vec3,
+  ],
+  cooler: { position: [-6.8, 0, 3.2] as Vec3 },
+} as const;
+
+/* =========================================================
+   PARTITIONS + WALKWAYS (Phase L)
+   Low dividers separate the open workspace from the front
+   zones while leaving a clear central walkway to Popi.
+======================================================== */
+
+export interface PartitionSpec {
+  position: Vec3;
+  /** Box size [x, y, z]. */
+  size: Vec3;
+  rotationY: number;
+}
+
+export const OFFICE_PARTITIONS: readonly PartitionSpec[] = [
+  // Left divider between the open floor and the lounge approach.
+  { position: [-7.9, 0, -0.4], size: [7.6, 1.35, 0.16], rotationY: 0 },
+  // Right divider between the open floor and the collaboration room.
+  { position: [6.9, 0, -0.4], size: [5.6, 1.35, 0.16], rotationY: 0 },
+  // Thin spine separating the far-right desk column from the collab room.
+  { position: [11.6, 0, -4.85], size: [0.16, 1.35, 6.9], rotationY: 0 },
+];
+
+/**
+ * Main walkways rendered as subtle emissive strips. The first runs the full
+ * width in front of the desks; the second is the central approach to Popi.
+ */
+export const OFFICE_WALKWAYS: ReadonlyArray<{
+  position: Vec3;
+  size: [number, number];
+}> = [
+  // Primary east-west route: sits between the desk rows and the dividers.
+  { position: [0, 0, -0.9], size: [25, 0.45] },
+  // Central approach toward the lounge, clear of Popi's rug.
+  { position: [-5.5, 0, 5.0], size: [0.5, 5.5] },
+];
+
+/** True when a point falls inside a zone's floor footprint. */
+export function zoneAt(x: number, z: number): OfficeZone | null {
+  for (const zone of OFFICE_ZONES) {
+    const [minX, maxX, minZ, maxZ] = zoneBounds(zone);
+    if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) {
+      return zone;
+    }
+  }
+  return null;
+}
+
+/**
+ * Deterministic workstation assignment zone: worker desks are ordered
+ * nearest-first, so a worker's rank maps onto the open workspace zone.
+ */
+export const WORKSPACE_ZONE_ID: OfficeZoneId = "workspace";
