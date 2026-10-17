@@ -21,6 +21,7 @@ import {
 import {
   assignWorkerWorkstations,
   CEILING_BANDS,
+  computeFramingDistance,
   OFFICE_LAYOUT,
   OFFICE_PALETTE as C,
   POPI_WORKSTATION,
@@ -260,32 +261,125 @@ function CeilingLights({
   );
 }
 
-function CameraRig({ focusDistance, targetOverride }: { focusDistance: number; targetOverride?: [number, number, number] | null }) {
+export interface OfficeSceneCameraControls {
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetView: () => void;
+}
+
+function zoomCameraByFactor(
+  camera: THREE.Camera,
+  controls: OrbitLike | null,
+  factor: number,
+  minDist = 3.8,
+  maxDist = 15.0,
+) {
+  if (!controls) return;
+  const offset = camera.position.clone().sub(controls.target);
+  const currentDist = offset.length();
+  const nextDist = THREE.MathUtils.clamp(currentDist * factor, minDist, maxDist);
+  offset.setLength(nextDist);
+  camera.position.copy(controls.target).add(offset);
+  controls.update();
+}
+
+function resetCameraView(
+  camera: THREE.Camera,
+  controls: OrbitLike | null,
+  distance: number,
+) {
+  const target = new THREE.Vector3(...CAMERA_TARGET);
+  if (controls) {
+    controls.target.copy(target);
+  }
+  camera.position.copy(target).addScaledVector(CAMERA_DIRECTION, distance);
+  camera.lookAt(target);
+  if (controls) {
+    controls.update();
+  }
+}
+
+function CameraRig({
+  extent,
+  targetOverride,
+  wheelZoomEnabled = false,
+  cameraControlsRef,
+  onResetView,
+}: {
+  extent: number;
+  targetOverride?: [number, number, number] | null;
+  wheelZoomEnabled?: boolean;
+  cameraControlsRef?: React.MutableRefObject<OfficeSceneCameraControls | null>;
+  onResetView?: () => void;
+}) {
   const camera = useThree((state) => state.camera);
   const size = useThree((state) => state.size);
+  const gl = useThree((state) => state.gl);
   const controls = useThree((state) => state.controls) as unknown as
     | OrbitLike
     | null;
 
+  const aspect = size.height > 0 ? size.width / size.height : 1;
+  const defaultDistance = computeFramingDistance(aspect, extent);
+  const lastTargetOverrideRef = useRef<[number, number, number] | null | undefined>(undefined);
+  const initialFramedRef = useRef(false);
+
+  // Position camera when targetOverride changes or on initial frame
   useEffect(() => {
-    const aspect = size.height > 0 ? size.width / size.height : 1;
-    // Narrow viewports need more distance, not less: the workstation plus the
-    // character has to stay inside the shorter axis. Scaled up for the Phase L
-    // hall so the default framing still reads as an office overview.
-    const aspectDistance = aspect < 1 ? 16.5 : aspect < 1.5 ? 14.5 : 12.0;
-    const distance = Math.max(aspectDistance, focusDistance);
-    const targetPos = targetOverride ? new THREE.Vector3(...targetOverride) : new THREE.Vector3(...CAMERA_TARGET);
+    if (!initialFramedRef.current || targetOverride !== lastTargetOverrideRef.current) {
+      initialFramedRef.current = true;
+      lastTargetOverrideRef.current = targetOverride;
 
-    camera.position
-      .copy(targetPos)
-      .addScaledVector(CAMERA_DIRECTION, distance);
-    camera.lookAt(targetPos);
+      const targetPos = targetOverride
+        ? new THREE.Vector3(...targetOverride)
+        : new THREE.Vector3(...CAMERA_TARGET);
+      const distance = targetOverride ? 6.2 : defaultDistance;
 
-    if (controls) {
-      controls.target.copy(targetPos);
-      controls.update();
+      camera.position.copy(targetPos).addScaledVector(CAMERA_DIRECTION, distance);
+      camera.lookAt(targetPos);
+
+      if (controls) {
+        controls.target.copy(targetPos);
+        controls.update();
+      }
     }
-  }, [camera, size, controls, focusDistance, targetOverride]);
+  }, [camera, controls, targetOverride, defaultDistance]);
+
+  // Expose camera controls handle to parent
+  useEffect(() => {
+    if (!cameraControlsRef) return;
+    cameraControlsRef.current = {
+      zoomIn: () => zoomCameraByFactor(camera, controls, 0.84, 3.8, 15.0),
+      zoomOut: () => zoomCameraByFactor(camera, controls, 1.18, 3.8, 15.0),
+      resetView: () => {
+        onResetView?.();
+        resetCameraView(camera, controls, defaultDistance);
+      },
+    };
+    return () => {
+      if (cameraControlsRef) cameraControlsRef.current = null;
+    };
+  }, [camera, controls, defaultDistance, cameraControlsRef, onResetView]);
+
+  // Controlled wheel zoom: only zoom when intentional (ctrl/meta pressed or wheelZoomEnabled)
+  // Otherwise allow wheel event to bubble naturally so page scrolling works!
+  useEffect(() => {
+    const dom = gl.domElement;
+    if (!dom) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey || wheelZoomEnabled) {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 0.90 : 1.11;
+        zoomCameraByFactor(camera, controls, factor, 3.8, 15.0);
+      }
+    };
+
+    dom.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      dom.removeEventListener("wheel", onWheel);
+    };
+  }, [gl, camera, controls, wheelZoomEnabled]);
 
   return null;
 }
@@ -305,6 +399,8 @@ export interface OfficeSceneProps {
   probe?: React.RefObject<PopiAnchorProbe>;
   selectedWorkerId?: string | null;
   onSelectWorker?: (workerId: string | null) => void;
+  wheelZoomEnabled?: boolean;
+  cameraControlsRef?: React.MutableRefObject<OfficeSceneCameraControls | null>;
 }
 
 export function OfficeScene({
@@ -320,6 +416,8 @@ export function OfficeScene({
   probe,
   selectedWorkerId = null,
   onSelectWorker,
+  wheelZoomEnabled = false,
+  cameraControlsRef,
 }: OfficeSceneProps) {
   const now = useRetentionNow();
   const reducedMotion = usePrefersReducedMotion();
@@ -361,15 +459,13 @@ export function OfficeScene({
     [visibleWorkers],
   );
 
-  const focusDistance = useMemo(() => {
-    const extent = Math.max(
+  const workerExtent = useMemo(() => {
+    return Math.max(
       3.4,
       ...layout.assignments.map(({ spec }) =>
         Math.hypot(spec.position[0], spec.position[2]),
       ),
     );
-
-    return Math.min(20, extent * 0.85 + 3.4);
   }, [layout]);
 
   return (
@@ -459,7 +555,10 @@ export function OfficeScene({
       {probe ? <PopiScreenAnchor probe={probe} /> : null}
 
       <CameraRig
-        focusDistance={focusDistance}
+        extent={workerExtent}
+        wheelZoomEnabled={wheelZoomEnabled}
+        cameraControlsRef={cameraControlsRef}
+        onResetView={() => onSelectWorker?.(null)}
         targetOverride={selectedWorkerId ? (() => {
           const found = layout.assignments.find((a) => a.workerId === selectedWorkerId);
           if (found) {
@@ -471,9 +570,10 @@ export function OfficeScene({
       <OrbitControls
         makeDefault
         enablePan={false}
+        enableZoom={false}
         enableDamping
-        minDistance={5}
-        maxDistance={30}
+        minDistance={3.8}
+        maxDistance={15.0}
         maxPolarAngle={Math.PI / 2.05}
         target={CAMERA_TARGET}
       />

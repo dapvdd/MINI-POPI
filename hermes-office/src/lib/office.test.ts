@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assignWorkerWorkstations,
   CEILING_BANDS,
+  computeFramingDistance,
   hashWorkerId,
   isWithinOfficeBounds,
   MAX_WORKER_WORKSTATIONS,
@@ -381,5 +382,28 @@ describe("assignWorkerWorkstations", () => {
       assignments: [],
       overflow: [],
     });
+  });
+});
+
+describe("computeFramingDistance", () => {
+  it("frames widescreen desktops tightly for crisp office details", () => {
+    const dist = computeFramingDistance(1.77, 3.4);
+    expect(dist).toBe(8.0);
+  });
+
+  it("gently widens for narrow/portrait viewports to keep boundaries visible", () => {
+    expect(computeFramingDistance(1.2, 3.4)).toBe(9.2);
+    expect(computeFramingDistance(0.6, 3.4)).toBe(11.0);
+  });
+
+  it("bounds distance to prevent microscopic office views", () => {
+    const largeExtent = computeFramingDistance(1.77, 25.0);
+    expect(largeExtent).toBeLessThanOrEqual(10.5);
+    expect(largeExtent).toBeGreaterThanOrEqual(8.0);
+  });
+
+  it("gracefully recovers from non-finite or non-positive inputs", () => {
+    expect(computeFramingDistance(Number.NaN, -5)).toBe(8.0);
+    expect(computeFramingDistance(0, 0)).toBe(8.0);
   });
 });

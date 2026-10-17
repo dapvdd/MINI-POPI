@@ -496,3 +496,20 @@ export function zoneAt(x: number, z: number): OfficeZone | null {
  * nearest-first, so a worker's rank maps onto the open workspace zone.
  */
 export const WORKSPACE_ZONE_ID: OfficeZoneId = "workspace";
+
+/**
+ * Compute optimal camera distance for the Virtual Office overview.
+ *
+ * Keeps Popi and nearby worker desks prominent on widescreen displays while
+ * ensuring the room fits on narrower viewports without unnecessary empty space.
+ */
+export function computeFramingDistance(aspect: number, extent = 3.4): number {
+  const safeAspect = Number.isFinite(aspect) && aspect > 0 ? aspect : 1.5;
+  const safeExtent = Number.isFinite(extent) && extent > 0 ? extent : 3.4;
+
+  const baseAspectDistance =
+    safeAspect < 1.0 ? 11.0 : safeAspect < 1.4 ? 9.2 : 8.0;
+  const boundedExtent = Math.min(10.5, Math.max(7.5, safeExtent * 0.45 + 3.8));
+
+  return Math.max(baseAspectDistance, boundedExtent);
+}

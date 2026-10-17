@@ -37,7 +37,7 @@ import { getWorkerStatusVisual } from "@/lib/worker-visuals";
 import { getBodyColor } from "@/lib/popi";
 import type { VisorMode } from "@/lib/popi-behavior";
 import { getComposerState } from "@/lib/composer";
-import { OfficeScene } from "@/components/office/OfficeScene";
+import { OfficeScene, type OfficeSceneCameraControls } from "@/components/office/OfficeScene";
 import {
   createPopiAnchorProbe,
   PopiSpeechBubble,
@@ -193,6 +193,8 @@ export default function Home() {
   const popiProbe = useRef(createPopiAnchorProbe());
   /** Ref to the 3D viewport box, used to keep the bubble inside it. */
   const viewportRef = useRef<HTMLDivElement>(null);
+  const [wheelZoomEnabled, setWheelZoomEnabled] = useState(false);
+  const cameraControlsRef = useRef<OfficeSceneCameraControls | null>(null);
   const reducedMotion = usePrefersReducedMotion();
 
   const syncedRef = useRef(false);
@@ -905,13 +907,13 @@ export default function Home() {
       </header>
 
       {/* WORKSPACE */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-[minmax(0,7fr)_minmax(320px,5fr)] xl:grid-cols-[minmax(0,8fr)_minmax(360px,4fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
         {/* LEFT: AGENT + ACTIVITY + EVENTS */}
         <section className="flex min-h-0 flex-col gap-4">
           {/* 3D VIEWPORT */}
           <div
             ref={viewportRef}
-            className="relative h-[300px] shrink-0 overflow-hidden rounded-xl border border-zinc-800 bg-gradient-to-b from-zinc-900/70 to-zinc-950 lg:h-auto lg:min-h-[220px] lg:flex-[7]"
+            className="relative h-[380px] shrink-0 overflow-hidden rounded-xl border border-zinc-800 bg-gradient-to-b from-zinc-900/70 to-zinc-950 lg:h-auto lg:min-h-[340px] lg:flex-[62]"
           >
             <Canvas
               shadows
@@ -935,6 +937,8 @@ export default function Home() {
                 connectionError={connectionError}
                 selectedWorkerId={selectedWorkerId}
                 onSelectWorker={setSelectedWorkerId}
+                wheelZoomEnabled={wheelZoomEnabled}
+                cameraControlsRef={cameraControlsRef}
               />
             </Canvas>
 
@@ -978,7 +982,7 @@ export default function Home() {
             </div>
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-zinc-950 via-zinc-950/70 to-transparent px-3 pb-2 pt-8">
-              <p className="truncate text-[11px] text-zinc-500">
+              <p className="max-w-[calc(100%-240px)] truncate text-[11px] text-zinc-500">
                 {tool !== "-" ? (
                   <>
                     Tool{" "}
@@ -997,12 +1001,68 @@ export default function Home() {
                 )}
               </p>
             </div>
+
+            {/* Camera Controls Floating Toolbar */}
+            <div
+              className="absolute bottom-2.5 right-2.5 z-10 flex items-center gap-1 rounded-lg border border-zinc-800/80 bg-zinc-950/85 p-1 backdrop-blur-md shadow-lg"
+              role="toolbar"
+              aria-label="3D Camera Controls"
+            >
+              <button
+                type="button"
+                onClick={() => cameraControlsRef.current?.zoomIn()}
+                title="Zoom in (or Ctrl + Scroll)"
+                className="flex h-6 w-6 items-center justify-center rounded border border-zinc-800 bg-zinc-900/90 text-xs font-bold text-zinc-300 transition hover:border-cyan-400/60 hover:bg-zinc-800 hover:text-cyan-200 active:scale-95"
+                aria-label="Zoom in"
+              >
+                +
+              </button>
+              <button
+                type="button"
+                onClick={() => cameraControlsRef.current?.zoomOut()}
+                title="Zoom out (or Ctrl + Scroll)"
+                className="flex h-6 w-6 items-center justify-center rounded border border-zinc-800 bg-zinc-900/90 text-xs font-bold text-zinc-300 transition hover:border-cyan-400/60 hover:bg-zinc-800 hover:text-cyan-200 active:scale-95"
+                aria-label="Zoom out"
+              >
+                −
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedWorkerId(null);
+                  cameraControlsRef.current?.resetView();
+                }}
+                title="Reset camera framing and clear worker focus"
+                className="rounded border border-zinc-800 bg-zinc-900/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 transition hover:border-cyan-400/60 hover:bg-zinc-800 hover:text-cyan-200 active:scale-95"
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                onClick={() => setWheelZoomEnabled((prev) => !prev)}
+                aria-pressed={wheelZoomEnabled}
+                title={
+                  wheelZoomEnabled
+                    ? "Wheel Zoom Active: scrolling on canvas zooms camera. Click to restore page scrolling."
+                    : "Page Scroll Active: mouse wheel scrolls the page normally. Hold Ctrl/Cmd or toggle to zoom."
+                }
+                className={`rounded border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition active:scale-95 ${
+                  wheelZoomEnabled
+                    ? "border-cyan-400/70 bg-cyan-400/20 text-cyan-200"
+                    : "border-zinc-800 bg-zinc-900/90 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
+                }`}
+              >
+                {wheelZoomEnabled ? "Wheel: Zoom" : "Wheel: Scroll"}
+              </button>
+            </div>
           </div>
 
-          {/* ACTIVITY */}
-          <div
-            className={`${PANEL} h-[260px] shrink-0 lg:h-auto lg:min-h-0 lg:flex-[5]`}
-          >
+          {/* TELEMETRY ROW: ACTIVITY + EVENT STREAM */}
+          <div className="grid min-h-0 grid-cols-1 gap-4 lg:flex-[38] md:grid-cols-2">
+            {/* ACTIVITY */}
+            <div
+              className={`${PANEL} h-[240px] shrink-0 md:h-auto md:min-h-0`}
+            >
             <div className={PANEL_HEADER}>
               <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">
                 Activity
@@ -1329,7 +1389,7 @@ export default function Home() {
 
           {/* EVENT STREAM */}
           <div
-            className={`${PANEL} h-[160px] shrink-0 lg:h-auto lg:min-h-0 lg:flex-[3]`}
+            className={`${PANEL} h-[180px] shrink-0 md:h-auto md:min-h-0`}
           >
             <div className={PANEL_HEADER}>
               <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">
@@ -1372,6 +1432,7 @@ export default function Home() {
                 ))
               )}
             </div>
+          </div>
           </div>
         </section>
 
