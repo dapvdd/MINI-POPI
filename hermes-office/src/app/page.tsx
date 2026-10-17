@@ -13,7 +13,7 @@ import {
   workersToArray,
   type WorkerState,
 } from "@/lib/hermes/workers";
-import type { RuntimeId, RuntimeWorker } from "@/lib/runtime/types";
+import type { RuntimeId, RuntimeEvent, RuntimeWorker } from "@/lib/runtime/types";
 import {
   mergeOfficeWorkers,
   officeWorkerKindLabel,
@@ -28,6 +28,11 @@ import {
   type InterruptMessage,
 } from "@/lib/runtime/interrupt";
 import { toFormattedOfficeEvent } from "@/lib/runtime/events";
+import { createEventIdTracker, nextRetryDelay } from "@/lib/runtime/sse";
+import {
+  classifyOpenCodeTurn,
+  extractPromptOutcome,
+} from "@/lib/opencode/turn";
 import { getWorkerStatusVisual } from "@/lib/worker-visuals";
 import { getBodyColor } from "@/lib/popi";
 import type { VisorMode } from "@/lib/popi-behavior";
@@ -177,9 +182,11 @@ export default function Home() {
   const [interruptMsg, setInterruptMsg] =
     useState<InterruptMessage | null>(null);
   const [visorMode, setVisorMode] = useState<VisorMode>("auto");
-  /** Live completed-turn counter, used by the bubble and the scene. */
-  const [turnSeq, setTurnSeq] = useState(0);
-  /** Increments only on a turn this page actually saw finish. */
+  /**
+   * Monotonic counter for turns this page actually saw finish (either runtime).
+   * Drives the celebration and the speech bubble so each real completed turn
+   * has a unique identity without reusing any runtime's server `turnSeq`.
+   */
   const [celebrationKey, setCelebrationKey] = useState(0);
 
   /** Popi's screen-space anchor, published from inside the Canvas. */
@@ -193,6 +200,16 @@ export default function Home() {
   const gatewayRef = useRef(false);
   const workersSigRef = useRef("");
   const officeWorkersRef = useRef<RuntimeWorker[]>([]);
+  /**
+   * OpenCode turn bookkeeping. `target` is the source session id whose turn is
+   * in flight; text is accumulated from the real event stream so the resolved
+   * reply is never fabricated. Kept in refs because the unified SSE effect owns
+   * a stable listener and must not close over stale state.
+   */
+  const opencodeTargetRef = useRef<string | null>(null);
+  const opencodeAwaitingRef = useRef(false);
+  const opencodeTextRef = useRef("");
+  const seenEventIdsRef = useRef(createEventIdTracker());
 
   useEffect(() => {
     const el = document.getElementById("conversation-panel");
@@ -236,7 +253,6 @@ export default function Home() {
       if (!syncedRef.current) {
         syncedRef.current = true;
         turnSeqRef.current = nextTurnSeq;
-        setTurnSeq(nextTurnSeq);
         gatewayRef.current = nextGateway;
         dispatchConversation({
           type: "sync-turn-seq",
@@ -244,11 +260,11 @@ export default function Home() {
         });
       } else if (nextTurnSeq > turnSeqRef.current) {
         turnSeqRef.current = nextTurnSeq;
-        setTurnSeq(nextTurnSeq);
         // Only a turn this session actually watched finish may celebrate.
         setCelebrationKey((previous) => previous + 1);
         dispatchConversation({
           type: "turn-completed",
+          runtime: "hermes",
           turnSeq: nextTurnSeq,
           text: nextResponse,
           fallback: nextRunError,
@@ -258,7 +274,7 @@ export default function Home() {
       }
 
       if (gatewayRef.current && !nextGateway) {
-        dispatchConversation({ type: "gateway-lost" });
+        dispatchConversation({ type: "gateway-lost", runtime: "hermes" });
       }
       gatewayRef.current = nextGateway;
 
@@ -314,16 +330,18 @@ export default function Home() {
       source = next;
 
       next.onopen = () => {
+        if (disposed || source !== next) return;
         retryDelay = 1000;
         setConnected(true);
       };
 
       next.onmessage = (event) => {
+        if (disposed || source !== next) return;
         applyState(event.data);
       };
 
       next.onerror = () => {
-        if (disposed) return;
+        if (disposed || source !== next) return;
 
         setConnected(false);
 
@@ -345,12 +363,14 @@ export default function Home() {
           prev === "OFFLINE" ? prev : "OFFLINE",
         );
 
+        if (retryTimer !== null) return;
+
         retryTimer = window.setTimeout(() => {
           retryTimer = null;
           open();
         }, retryDelay);
 
-        retryDelay = Math.min(retryDelay * 2, 10000);
+        retryDelay = nextRetryDelay(retryDelay, 10000);
       };
     }
 
@@ -445,6 +465,45 @@ export default function Home() {
     let retryTimer: number | null = null;
     let retryDelay = 2000;
 
+    /**
+     * Resolve an in-flight OpenCode turn from real runtime events. The prompt
+     * POST only proves *submission*; completion comes from the stream, and the
+     * reply text is whatever the runtime actually sent.
+     */
+    function handleOpenCodeTurn(ev: RuntimeEvent) {
+      const target = opencodeTargetRef.current;
+
+      // Only the session we dispatched to, and only while it is in flight: a
+      // late frame after completion can never create a second reply.
+      if (!target || !opencodeAwaitingRef.current || ev.sourceId !== target) {
+        return;
+      }
+
+      const update = classifyOpenCodeTurn(ev.type, ev.payload);
+      if (!update) return;
+
+      if (update.delta) opencodeTextRef.current += update.delta;
+      if (update.text) opencodeTextRef.current = update.text;
+
+      if (update.phase !== "completed" && update.phase !== "failed") {
+        return;
+      }
+
+      opencodeAwaitingRef.current = false;
+      const text = opencodeTextRef.current.trim();
+      opencodeTextRef.current = "";
+
+      dispatchConversation({
+        type: "turn-completed",
+        runtime: "opencode",
+        turnId: `opencode:${target}:${ev.id ?? ev.at}`,
+        text: text || null,
+        fallback: update.error,
+        failed: update.phase === "failed",
+      });
+      setCelebrationKey((previous) => previous + 1);
+    }
+
     function open() {
       if (disposed) return;
       source?.close();
@@ -453,15 +512,29 @@ export default function Home() {
       source = es;
 
       es.onopen = () => {
+        if (disposed || source !== es) return;
         retryDelay = 2000;
       };
 
       es.onmessage = (event) => {
+        if (disposed || source !== es) return;
         try {
-          const envelope = JSON.parse(event.data);
-          if (envelope.type === "runtime.event" && envelope.payload) {
-            const formatted = toFormattedOfficeEvent(envelope.payload);
-            setEvents((prev) => [formatted.text, ...prev].slice(0, 30));
+          const envelope = JSON.parse(event.data) as {
+            type?: string;
+            payload?: RuntimeEvent;
+          };
+          if (envelope.type !== "runtime.event" || !envelope.payload) return;
+
+          const ev = envelope.payload;
+          const formatted = toFormattedOfficeEvent(ev);
+
+          // A reconnect can replay a frame; never double-count it.
+          if (!seenEventIdsRef.current.accept(formatted.id)) return;
+
+          setEvents((prev) => [formatted.text, ...prev].slice(0, 30));
+
+          if (ev.runtime === "opencode") {
+            handleOpenCodeTurn(ev);
           }
         } catch {
           // ignore heartbeat / unparseable
@@ -469,11 +542,18 @@ export default function Home() {
       };
 
       es.onerror = () => {
-        if (disposed) return;
+        if (disposed || source !== es) return;
         es.close();
         if (source === es) source = null;
-        retryTimer = window.setTimeout(open, retryDelay);
-        retryDelay = Math.min(retryDelay * 2, 15000);
+
+        // Guard against overlapping error events scheduling duplicate reconnects.
+        if (retryTimer !== null) return;
+
+        retryTimer = window.setTimeout(() => {
+          retryTimer = null;
+          open();
+        }, retryDelay);
+        retryDelay = nextRetryDelay(retryDelay);
       };
     }
 
@@ -481,7 +561,10 @@ export default function Home() {
 
     return () => {
       disposed = true;
-      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      if (retryTimer !== null) {
+        window.clearTimeout(retryTimer);
+        retryTimer = null;
+      }
       source?.close();
       source = null;
     };
@@ -550,6 +633,12 @@ export default function Home() {
           setOpencodeSessionId(ocSessionId);
         }
 
+        // Track this turn before the POST so events that arrive while the
+        // request is in flight are attributed to the right session.
+        opencodeTargetRef.current = ocSessionId;
+        opencodeAwaitingRef.current = true;
+        opencodeTextRef.current = "";
+
         const promptRes = await fetch(
           `/api/runtimes/sessions/opencode/${encodeURIComponent(ocSessionId)}/prompt`,
           {
@@ -563,18 +652,34 @@ export default function Home() {
           throw new Error(promptJson?.error ?? "Failed to send prompt to OpenCode");
         }
 
-        dispatchConversation({
-          type: "turn-completed",
-          turnSeq: turnSeq + 1,
-          text: `Task dispatched to OpenCode (session ${ocSessionId.slice(0, 8)}).`,
-          fallback: null,
-          failed: false,
-        });
+        /*
+         * A successful POST only proves the task was *accepted*. If — and only
+         * if — the runtime returned a real assistant payload do we complete the
+         * turn now; otherwise it stays pending until the event stream reports
+         * completion. We never fabricate a reply.
+         */
+        const outcome = extractPromptOutcome(promptJson?.result);
+        if (outcome) {
+          opencodeAwaitingRef.current = false;
+          opencodeTextRef.current = "";
+          dispatchConversation({
+            type: "turn-completed",
+            runtime: "opencode",
+            turnId: `opencode:${ocSessionId}:result:${Date.now()}`,
+            text: outcome.text,
+            fallback: outcome.error,
+            failed: Boolean(outcome.error) && !outcome.text,
+          });
+          setCelebrationKey((previous) => previous + 1);
+        }
+
         setPrompt("");
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to send prompt to OpenCode";
         console.error("Failed to send prompt to OpenCode:", error);
-        dispatchConversation({ type: "submit-failed", message });
+        opencodeAwaitingRef.current = false;
+        opencodeTextRef.current = "";
+        dispatchConversation({ type: "submit-failed", message, runtime: "opencode" });
         setSubmitError(message);
       } finally {
         setSending(false);
@@ -639,6 +744,7 @@ export default function Home() {
       dispatchConversation({
         type: "submit-failed",
         message,
+        runtime: "hermes",
       });
       setSubmitError(message);
     } finally {
@@ -753,11 +859,11 @@ export default function Home() {
     return {
       sessionId,
       pendingId: pendingMessage ? pendingMessage.id : null,
-      turnSeq,
+      turnSeq: celebrationKey,
       response: latestReply ? latestReply.text : null,
       responseStatus: status,
     };
-  }, [sessionId, pendingMessage, turnSeq, latestReply]);
+  }, [sessionId, pendingMessage, celebrationKey, latestReply]);
 
   const bubbleMessage = useSpeechBubble(bubbleInput);
 

@@ -214,9 +214,22 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
       return () => {};
     }
     let aborted = false;
+    let active = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryDelay = 1000;
     let controller: AbortController | null = null;
+
+    const schedule = (delay: number) => {
+      if (aborted || retryTimer !== null) return;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        void start();
+      }, delay);
+    };
+
     const start = async () => {
-      if (aborted) return;
+      if (aborted || active) return;
+      active = true;
       controller = new AbortController();
       try {
         const res = await fetch(`${ab.base}/api/event`, {
@@ -225,10 +238,10 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
           signal: controller.signal,
         });
         if (!res.ok || !res.body) {
-          // Reconnect with backoff after short delay
-          setTimeout(start, 1000);
+          retryDelay = Math.min(retryDelay, 2000);
           return;
         }
+        retryDelay = 1000;
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -262,14 +275,29 @@ export class OpenCodeRuntimeAdapter implements RuntimeAdapter {
           }
         }
       } catch {
-        if (aborted) return;
-        setTimeout(start, 2000);
+        // Network error or abort; reschedule below unless unsubscribed.
+      } finally {
+        active = false;
+        controller = null;
+        // The upstream stream ending normally (server timeout/close) must not
+        // silently kill the subscription, so reconnect with capped backoff.
+        if (!aborted) {
+          schedule(retryDelay);
+          retryDelay = Math.min(retryDelay * 2, 15000);
+        }
       }
     };
-    start();
+
+    void start();
+
     return () => {
       aborted = true;
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
       controller?.abort();
+      controller = null;
     };
   }
 

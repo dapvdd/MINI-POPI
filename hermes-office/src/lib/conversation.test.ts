@@ -181,3 +181,170 @@ describe("conversationReducer", () => {
     expect(state.messages[1].text).toBe("Turn failed without a message.");
   });
 });
+
+function submitRuntime(
+  state: ConversationState,
+  text: string,
+  runtime: "hermes" | "opencode",
+) {
+  return reduce(state, { type: "user-submitted", text, runtime });
+}
+
+function completeRuntime(
+  state: ConversationState,
+  runtime: "hermes" | "opencode",
+  payload: { turnSeq?: number; turnId?: string; text: string | null; failed?: boolean },
+) {
+  return reduce(state, {
+    type: "turn-completed",
+    runtime,
+    turnSeq: payload.turnSeq,
+    turnId: payload.turnId,
+    text: payload.text,
+    fallback: null,
+    failed: payload.failed ?? false,
+  });
+}
+
+describe("conversationReducer — concurrent multi-runtime turns", () => {
+  it("completes an OpenCode turn without disturbing a pending Hermes turn", () => {
+    let state = sync(initialConversationState, 0);
+    state = submitRuntime(state, "hermes prompt", "hermes");
+    state = submitRuntime(state, "opencode prompt", "opencode");
+
+    state = completeRuntime(state, "opencode", {
+      turnId: "oc-1",
+      text: "opencode answer",
+    });
+
+    expect(visible(state)).toEqual([
+      "user:complete:hermes prompt",
+      "assistant:pending:",
+      "user:complete:opencode prompt",
+      "assistant:complete:opencode answer",
+    ]);
+    expect(state.pendingIds).toHaveLength(1);
+
+    state = completeRuntime(state, "hermes", {
+      turnSeq: 1,
+      text: "hermes answer",
+    });
+
+    expect(visible(state)).toEqual([
+      "user:complete:hermes prompt",
+      "assistant:complete:hermes answer",
+      "user:complete:opencode prompt",
+      "assistant:complete:opencode answer",
+    ]);
+    expect(state.pendingIds).toEqual([]);
+  });
+
+  it("routes completion to the correct runtime regardless of arrival order", () => {
+    let state = sync(initialConversationState, 0);
+    state = submitRuntime(state, "hermes prompt", "hermes");
+    state = submitRuntime(state, "opencode prompt", "opencode");
+
+    // Hermes finishes first even though OpenCode was submitted last.
+    state = completeRuntime(state, "hermes", {
+      turnSeq: 1,
+      text: "hermes answer",
+    });
+
+    expect(state.messages[1]).toMatchObject({
+      role: "assistant",
+      runtime: "hermes",
+      text: "hermes answer",
+      status: "complete",
+    });
+    expect(state.messages[3]).toMatchObject({
+      role: "assistant",
+      runtime: "opencode",
+      status: "pending",
+    });
+  });
+
+  it("does not let an OpenCode turn advance the Hermes turn sequence", () => {
+    let state = sync(initialConversationState, 0);
+    state = submitRuntime(state, "opencode prompt", "opencode");
+    state = completeRuntime(state, "opencode", {
+      turnId: "oc-1",
+      text: "opencode answer",
+    });
+
+    // A later Hermes turn with seq 1 must still be accepted: OpenCode's
+    // completion must not have consumed the Hermes sequence namespace.
+    state = submitRuntime(state, "hermes prompt", "hermes");
+    state = completeRuntime(state, "hermes", {
+      turnSeq: 1,
+      text: "hermes answer",
+    });
+
+    expect(state.messages[3]).toMatchObject({
+      role: "assistant",
+      runtime: "hermes",
+      text: "hermes answer",
+      status: "complete",
+    });
+    expect(state.pendingIds).toEqual([]);
+  });
+
+  it("ignores a replayed OpenCode turn id", () => {
+    let state = sync(initialConversationState, 0);
+    state = submitRuntime(state, "opencode prompt", "opencode");
+    state = completeRuntime(state, "opencode", {
+      turnId: "oc-9",
+      text: "first answer",
+    });
+
+    const afterFirst = state;
+    const replay = completeRuntime(state, "opencode", {
+      turnId: "oc-9",
+      text: "second answer",
+    });
+
+    expect(replay).toBe(afterFirst);
+    expect(visible(replay)).toEqual([
+      "user:complete:opencode prompt",
+      "assistant:complete:first answer",
+    ]);
+  });
+
+  it("keeps a pending OpenCode turn pending until its own runtime completes", () => {
+    let state = sync(initialConversationState, 0);
+    state = submitRuntime(state, "opencode prompt", "opencode");
+
+    // Hermes-only lifecycle signals must not resolve the OpenCode turn.
+    state = reduce(state, { type: "submit-failed", message: "hermes boom" });
+    state = reduce(state, { type: "gateway-lost", runtime: "hermes" });
+
+    expect(state.pendingIds).toHaveLength(1);
+    expect(state.messages[1]).toMatchObject({
+      role: "assistant",
+      runtime: "opencode",
+      status: "pending",
+    });
+  });
+
+  it("scopes gateway loss and submit failures to their runtime", () => {
+    let state = sync(initialConversationState, 0);
+    state = submitRuntime(state, "hermes prompt", "hermes");
+    state = submitRuntime(state, "opencode prompt", "opencode");
+
+    state = reduce(state, { type: "gateway-lost", runtime: "hermes" });
+
+    expect(state.messages[1].status).toBe("error");
+    expect(state.messages[3].status).toBe("pending");
+
+    state = reduce(state, {
+      type: "submit-failed",
+      message: "opencode boom",
+      runtime: "opencode",
+    });
+
+    expect(state.messages[3]).toMatchObject({
+      status: "error",
+      text: "opencode boom",
+    });
+    expect(state.pendingIds).toEqual([]);
+  });
+});
